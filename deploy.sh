@@ -34,11 +34,33 @@ echo "→ Ensuring remote directory: $REMOTE_DIR"
 sshpass -e ssh -o StrictHostKeyChecking=accept-new -p "$PORT" "$USER@$HOST" \
   "mkdir -p '$REMOTE_DIR'"
 
+# --- Regenerate single-file bundle --------------------------------------
+if command -v python3 >/dev/null 2>&1; then
+  python3 - <<'PYEOF'
+html = open('index.html').read()
+css = open('styles.css').read()
+js = open('app.js').read()
+html = html.replace('<link rel="stylesheet" href="styles.css?v=2" />', f'<style>\n{css}\n</style>')
+html = html.replace('<script src="app.js?v=2" defer></script>', f'<script>\n{js}\n</script>')
+open('prism.html', 'w').write(html)
+PYEOF
+fi
+
 # --- Upload files -------------------------------------------------------
-echo "→ Uploading index.html, styles.css, app.js"
+echo "→ Uploading index.html, styles.css, app.js, prism.html"
 sshpass -e scp -o StrictHostKeyChecking=accept-new -P "$PORT" \
-  index.html styles.css app.js \
+  index.html styles.css app.js prism.html \
   "$USER@$HOST:$REMOTE_DIR/"
+
+# --- Drop a .htaccess so cache doesn't bite next time -------------------
+sshpass -e ssh -o StrictHostKeyChecking=accept-new -p "$PORT" "$USER@$HOST" \
+  "cat > '$REMOTE_DIR/.htaccess' << 'HTEOF'
+<IfModule mod_headers.c>
+  <FilesMatch \"\\.(html|js|css)$\">
+    Header set Cache-Control \"no-cache, must-revalidate\"
+  </FilesMatch>
+</IfModule>
+HTEOF"
 
 # --- Verify -------------------------------------------------------------
 echo "→ Verifying upload:"
