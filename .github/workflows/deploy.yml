@@ -57,16 +57,18 @@ jobs:
             -p 22 "$SSH_USER@$SSH_HOST" "mkdir -p '$REMOTE_DIR'"
 
           echo "→ Uploading files"
-          sshpass -e ssh -o StrictHostKeyChecking=accept-new -p 22 "$SSH_USER@$SSH_HOST" \
-            "mkdir -p '$REMOTE_DIR/models'"
           sshpass -e scp -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 \
             -P 22 \
             index.html styles.css app.js prism.html preview.html .htaccess \
             "$SSH_USER@$SSH_HOST:$REMOTE_DIR/"
-          sshpass -e scp -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 \
-            -P 22 \
-            models/*.glb \
-            "$SSH_USER@$SSH_HOST:$REMOTE_DIR/models/"
+          # Upload models/ only if there are any .glb files
+          if compgen -G "models/*.glb" > /dev/null; then
+            sshpass -e ssh -o StrictHostKeyChecking=accept-new -p 22 "$SSH_USER@$SSH_HOST" \
+              "mkdir -p '$REMOTE_DIR/models'"
+            sshpass -e scp -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 \
+              -P 22 models/*.glb \
+              "$SSH_USER@$SSH_HOST:$REMOTE_DIR/models/"
+          fi
 
           echo "→ Verifying"
           sshpass -e ssh -o StrictHostKeyChecking=accept-new \
