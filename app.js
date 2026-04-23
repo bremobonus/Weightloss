@@ -351,11 +351,12 @@ const APP = {
     this.renderSketchfabBody('body-hero', weight, bf);
   },
 
-  // Sketchfab "Wireframe Man" by Doomcubus
-  // https://sketchfab.com/3d-models/wireframe-man-44764d68c52a43a7aa981761f508d10b
-  SKETCHFAB_MODEL_ID: '44764d68c52a43a7aa981761f508d10b',
-  SKETCHFAB_MODEL_AUTHOR: 'Doomcubus',
-  SKETCHFAB_MODEL_NAME: 'Wireframe Man',
+  // Sketchfab "Man" by Alexand Maltsev (Kalmukovv)
+  // https://sketchfab.com/3d-models/man-a5e697695dbb4f9fb5cf06f7801179d6
+  SKETCHFAB_MODEL_ID: 'a5e697695dbb4f9fb5cf06f7801179d6',
+  SKETCHFAB_MODEL_AUTHOR: 'Alexand Maltsev',
+  SKETCHFAB_MODEL_NAME: 'Man',
+  SKETCHFAB_MODEL_SLUG: 'man',
 
   sketchfabEmbedURL() {
     const params = [
@@ -444,7 +445,7 @@ const APP = {
           ${bf.toFixed(1)}% BF
         </div>
         <a class="sf-credit"
-           href="https://sketchfab.com/3d-models/wireframe-man-${this.SKETCHFAB_MODEL_ID}"
+           href="https://sketchfab.com/3d-models/${this.SKETCHFAB_MODEL_SLUG}-${this.SKETCHFAB_MODEL_ID}"
            target="_blank" rel="noopener">
            ${this.SKETCHFAB_MODEL_NAME} · ${this.SKETCHFAB_MODEL_AUTHOR}
         </a>
