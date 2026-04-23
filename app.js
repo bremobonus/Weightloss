@@ -10,6 +10,30 @@ const APP = {
     this.renderAll();
     this.updateTime();
     setInterval(() => this.updateTime(), 5000);
+    this.checkInjectURL();
+  },
+
+  checkInjectURL() {
+    const params = new URLSearchParams(location.search);
+    const inject = params.get('inject');
+    if (!inject) return;
+    try {
+      const json = decodeURIComponent(escape(atob(inject.replace(/-/g, '+').replace(/_/g, '/'))));
+      const data = JSON.parse(json);
+      this.applyClaudeData(data);
+      this.toast('✓ Logged from link');
+      // Clean URL so reloads don't re-inject
+      history.replaceState({}, '', location.pathname);
+      if (data.summary) {
+        const resp = document.getElementById('ai-response');
+        if (resp) {
+          resp.className = 'ai-response show';
+          resp.innerHTML = `<div style="font-weight:600;margin-bottom:4px">✓ Injected</div><div style="color:var(--ink-dim)">${this.escapeHtml(data.summary)}</div>`;
+        }
+      }
+    } catch (e) {
+      this.toast('Inject failed: ' + e.message);
+    }
   },
 
   defaultState: {
