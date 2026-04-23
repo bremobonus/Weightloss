@@ -348,21 +348,18 @@ const APP = {
   },
 
   renderBodyHero(weight, bf) {
-    document.getElementById('body-hero').innerHTML = this.createBodySVG(weight, bf, 120);
+    this.renderBody3D('body-hero', weight, bf);
   },
 
-  init3DBody(containerId, weight, bf) {
+  renderBody3D(containerId, weight, bf) {
     const container = typeof containerId === 'string' ? document.getElementById(containerId) : containerId;
     if (!container) return;
-
-    // If Three isn't loaded yet, retry on the ready event
-    if (!window.THREE || !window.MarchingCubes) {
-      const retry = () => this.init3DBody(containerId, weight, bf);
-      window.addEventListener('three-ready', retry, {once: true});
+    if (!window.THREE) {
+      container.innerHTML = this.createBodySVG(weight, bf, 120);
+      setTimeout(() => { if (window.THREE) this.renderBody3D(containerId, weight, bf); }, 800);
       return;
     }
 
-    // Cleanup previous
     if (container._three) {
       container._three.cancelled = true;
       try { container._three.renderer.dispose(); } catch(e) {}
@@ -371,184 +368,124 @@ const APP = {
     }
 
     const THREE = window.THREE;
-    const MarchingCubes = window.MarchingCubes;
-    const W = Math.max(200, container.clientWidth || 300);
-    const H = Math.max(320, container.clientHeight || 400);
+    const W = Math.max(220, container.clientWidth || 300);
+    const H = Math.max(340, container.clientHeight || 400);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(28, W / H, 0.1, 50);
-    camera.position.set(0, 0, 3.6);
-    camera.lookAt(0, 0, 0);
+    const camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 50);
+    camera.position.set(0, 0, 4.2);
+    camera.lookAt(0, -0.2, 0);
 
     const renderer = new THREE.WebGLRenderer({alpha: true, antialias: true});
     renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.setSize(W, H);
-    renderer.outputColorSpace = THREE.SRGBColorSpace || 3001;
     container.appendChild(renderer.domElement);
-
-    // Studio lighting
-    scene.add(new THREE.AmbientLight(0x1a1f2e, 0.45));
-    const key = new THREE.DirectionalLight(0xffffff, 1.4);
-    key.position.set(-3, 4, 3.5);
-    scene.add(key);
-    const fill = new THREE.DirectionalLight(0x9aafcf, 0.55);
-    fill.position.set(3, 1, 0.5);
-    scene.add(fill);
-    // Rainbow rim
-    const rimL = new THREE.PointLight(0xc04dff, 2.2, 8);
-    rimL.position.set(-2, 1.5, -2);
-    scene.add(rimL);
-    const rimR = new THREE.PointLight(0x00d4ff, 2.2, 8);
-    rimR.position.set(2, 1.5, -2);
-    scene.add(rimR);
-    const rimBot = new THREE.PointLight(0xff2d6f, 0.8, 5);
-    rimBot.position.set(0, -1.8, 1);
-    scene.add(rimBot);
-
-    // Matte mannequin material (matches reference — soft blue-gray)
-    const mat = new THREE.MeshPhongMaterial({
-      color: 0xbccad8,
-      specular: 0x555f70,
-      shininess: 30,
-      flatShading: false,
-    });
-
-    // Metaballs via MarchingCubes — scalar field evaluated to smooth mesh
-    const resolution = 56;
-    const mc = new MarchingCubes(resolution, mat, true, true, 80000);
-    mc.isolation = 80;
-    mc.scale.setScalar(1.0);
-    mc.position.set(0, 0, 0);
 
     const fatN = Math.max(0, Math.min(1, (bf - 10) / 25));
     const leanN = 1 - fatN;
 
-    // addBall coords: 0..1 space, strength ≈ 0..1, subtract ≈ 8..20
-    // Helper converts world-space coords (centered) to 0..1
-    const ab = (x, y, z, strength, subtract = 12) => {
-      mc.addBall(0.5 + x, 0.5 + y, 0.5 + z, strength, subtract);
+    const wireMat = new THREE.MeshBasicMaterial({
+      color: 0x00d4ff, wireframe: true, transparent: true, opacity: 0.78,
+    });
+    const glowMat = new THREE.MeshBasicMaterial({
+      color: 0xc04dff, wireframe: true, transparent: true, opacity: 0.22,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+
+    const body = new THREE.Group();
+
+    const addWire = (geom, x, y, z, opts = {}) => {
+      const m = new THREE.Mesh(geom, wireMat);
+      m.position.set(x, y, z);
+      if (opts.rotZ) m.rotation.z = opts.rotZ;
+      if (opts.scale) m.scale.copy(opts.scale);
+      body.add(m);
+      const g = new THREE.Mesh(geom, glowMat);
+      g.position.set(x, y, z);
+      g.scale.setScalar(1.08);
+      if (opts.scale) g.scale.multiply(opts.scale);
+      if (opts.rotZ) g.rotation.z = opts.rotZ;
+      body.add(g);
+      return m;
     };
 
-    // Anatomical metaball layout.
-    // X = horizontal (±), Y = vertical, Z = depth (+ toward camera)
-    // Coordinates in -0.5..+0.5 range centered at origin.
+    const V = THREE.Vector3;
 
-    // --- HEAD ---
-    ab(0, 0.40, 0, 0.16);              // cranium
-    ab(0, 0.34, 0.02, 0.12);           // jaw chamfer
-    ab(0, 0.28, 0, 0.07);              // neck top
-
-    // --- TRAPS / SHOULDERS ---
-    ab(-0.08, 0.245, 0, 0.10);
-    ab(0.08, 0.245, 0, 0.10);
-    ab(-0.16, 0.22, 0, 0.13);          // deltoid L
-    ab(0.16, 0.22, 0, 0.13);           // deltoid R
-
-    // --- PECS ---
-    ab(-0.07, 0.16, 0.06, 0.14);
-    ab(0.07, 0.16, 0.06, 0.14);
-    ab(-0.07, 0.12, 0.05, 0.10);       // pec lower fullness
-    ab(0.07, 0.12, 0.05, 0.10);
-
-    // --- RIB CAGE / UPPER TORSO ---
-    ab(-0.07, 0.07, 0.03, 0.11);
-    ab(0.07, 0.07, 0.03, 0.11);
-    ab(-0.12, 0.02, 0, 0.09);          // serratus
-    ab(0.12, 0.02, 0, 0.09);
-
-    // --- ABS (6-pack appearance via placement; visible at low BF) ---
-    const absBulge = 0.05 + leanN * 0.04;
-    ab(-0.04, 0.02, 0.04 + leanN * 0.02, absBulge);
-    ab(0.04, 0.02, 0.04 + leanN * 0.02, absBulge);
-    ab(-0.04, -0.02, 0.04 + leanN * 0.02, absBulge);
-    ab(0.04, -0.02, 0.04 + leanN * 0.02, absBulge);
-    ab(-0.04, -0.06, 0.04 + leanN * 0.02, absBulge);
-    ab(0.04, -0.06, 0.04 + leanN * 0.02, absBulge);
-
-    // --- WAIST (narrow at low BF, full at high BF) ---
-    const waistR = 0.08 + fatN * 0.08;
-    ab(0, -0.08, 0, waistR);
-    // Belly high-BF bulge
+    // HEAD
+    addWire(new THREE.SphereGeometry(0.19, 14, 12), 0, 0.56, 0);
+    // NECK
+    addWire(new THREE.CylinderGeometry(0.09, 0.13, 0.16, 12, 1), 0, 0.38, 0);
+    // CHEST
+    addWire(new THREE.CylinderGeometry(0.38, 0.28, 0.5, 16, 4), 0, 0.14, 0,
+      {scale: new V(1.1, 1, 0.72)});
+    // WAIST — morphs with BF
+    const waistR = 0.22 + fatN * 0.16;
+    addWire(new THREE.CylinderGeometry(waistR, waistR + 0.04, 0.26, 16, 2), 0, -0.17, 0,
+      {scale: new V(1, 1, 0.72 + fatN * 0.25)});
+    // BELLY (high BF)
     if (fatN > 0.2) {
-      ab(0, -0.06, 0.08 + fatN * 0.05, 0.11 + fatN * 0.1);
-      ab(0, -0.10, 0.08 + fatN * 0.05, 0.10 + fatN * 0.08);
+      addWire(new THREE.SphereGeometry(0.22 + fatN * 0.1, 14, 10), 0, -0.14, 0.12,
+        {scale: new V(1 + fatN * 0.2, 0.8, 0.55)});
     }
+    // HIPS
+    addWire(new THREE.CylinderGeometry(0.28, 0.22, 0.2, 14, 2), 0, -0.37, 0,
+      {scale: new V(1.08, 1, 0.75)});
+    // SHOULDERS
+    addWire(new THREE.SphereGeometry(0.14, 12, 10), -0.44, 0.24, 0);
+    addWire(new THREE.SphereGeometry(0.14, 12, 10), 0.44, 0.24, 0);
+    // UPPER ARMS
+    const armR = 0.09 + fatN * 0.015;
+    const upArm = new THREE.CylinderGeometry(armR, armR * 0.88, 0.5, 12, 2);
+    addWire(upArm, -0.5, -0.03, 0, {rotZ: 0.12});
+    addWire(upArm, 0.5, -0.03, 0, {rotZ: -0.12});
+    // BICEPS (low BF)
+    if (leanN > 0.35) {
+      const bic = new THREE.SphereGeometry(0.09, 10, 8);
+      addWire(bic, -0.48, 0.03, 0.03, {scale: new V(0.9, 1.3, 0.6)});
+      addWire(bic, 0.48, 0.03, 0.03, {scale: new V(0.9, 1.3, 0.6)});
+    }
+    // ELBOWS
+    addWire(new THREE.SphereGeometry(0.08, 10, 8), -0.56, -0.3, 0);
+    addWire(new THREE.SphereGeometry(0.08, 10, 8), 0.56, -0.3, 0);
+    // FOREARMS
+    const fa = new THREE.CylinderGeometry(0.08, 0.06, 0.42, 12, 2);
+    addWire(fa, -0.58, -0.53, 0);
+    addWire(fa, 0.58, -0.53, 0);
+    // HANDS
+    addWire(new THREE.SphereGeometry(0.085, 10, 8), -0.6, -0.77, 0);
+    addWire(new THREE.SphereGeometry(0.085, 10, 8), 0.6, -0.77, 0);
+    // THIGHS
+    const thighR = 0.14 + fatN * 0.03;
+    const thigh = new THREE.CylinderGeometry(thighR, thighR * 0.82, 0.55, 14, 3);
+    addWire(thigh, -0.15, -0.7, 0);
+    addWire(thigh, 0.15, -0.7, 0);
+    // KNEES
+    addWire(new THREE.SphereGeometry(0.1, 10, 8), -0.15, -1.0, 0);
+    addWire(new THREE.SphereGeometry(0.1, 10, 8), 0.15, -1.0, 0);
+    // CALVES
+    const calf = new THREE.CylinderGeometry(0.11, 0.07, 0.48, 14, 2);
+    addWire(calf, -0.15, -1.26, 0);
+    addWire(calf, 0.15, -1.26, 0);
+    // FEET
+    addWire(new THREE.BoxGeometry(0.14, 0.08, 0.28), -0.15, -1.53, 0.06);
+    addWire(new THREE.BoxGeometry(0.14, 0.08, 0.28), 0.15, -1.53, 0.06);
 
-    // --- HIPS ---
-    ab(-0.10, -0.14, 0, 0.12);
-    ab(0.10, -0.14, 0, 0.12);
-    ab(0, -0.15, -0.06, 0.11);         // glutes
-
-    // --- ARMS ---
-    // Deltoid-to-bicep
-    ab(-0.22, 0.16, 0, 0.11);
-    ab(0.22, 0.16, 0, 0.11);
-    // Biceps (with peak at low BF)
-    const bicep = 0.08 + leanN * 0.03;
-    ab(-0.26, 0.08, 0.02, bicep);
-    ab(0.26, 0.08, 0.02, bicep);
-    ab(-0.27, 0.02, 0, 0.08);          // triceps back
-    ab(0.27, 0.02, 0, 0.08);
-    // Elbows
-    ab(-0.28, -0.05, 0, 0.07);
-    ab(0.28, -0.05, 0, 0.07);
-    // Forearms
-    ab(-0.30, -0.12, 0, 0.075);
-    ab(0.30, -0.12, 0, 0.075);
-    ab(-0.30, -0.18, 0, 0.06);
-    ab(0.30, -0.18, 0, 0.06);
-    // Hands (fists)
-    ab(-0.31, -0.24, 0, 0.06);
-    ab(0.31, -0.24, 0, 0.06);
-
-    // --- LEGS ---
-    // Upper thigh (massive near hip)
-    const thigh = 0.12 + fatN * 0.025;
-    ab(-0.08, -0.22, 0, thigh);
-    ab(0.08, -0.22, 0, thigh);
-    // Quad bulges (low BF shows definition)
-    const quad = 0.08 + leanN * 0.02;
-    ab(-0.08, -0.28, 0.04, quad);
-    ab(0.08, -0.28, 0.04, quad);
-    // Mid thigh
-    ab(-0.08, -0.34, 0, 0.095);
-    ab(0.08, -0.34, 0, 0.095);
-    // Knees
-    ab(-0.08, -0.40, 0.01, 0.08);
-    ab(0.08, -0.40, 0.01, 0.08);
-    // Calves (bulges back)
-    const calf = 0.085 + leanN * 0.015;
-    ab(-0.08, -0.45, -0.02, calf);
-    ab(0.08, -0.45, -0.02, calf);
-    // Lower leg
-    ab(-0.08, -0.49, 0, 0.065);
-    ab(0.08, -0.49, 0, 0.065);
-
-    // Generate the mesh
-    mc.update();
-    scene.add(mc);
-
-    // Rotation group
-    const body = new THREE.Group();
-    body.add(mc);
     scene.add(body);
 
     const state = {cancelled: false, renderer, scene, container};
     container._three = state;
-
     const clock = new THREE.Clock();
     const animate = () => {
       if (state.cancelled) return;
       requestAnimationFrame(animate);
-      const t = clock.getElapsedTime();
-      body.rotation.y = Math.sin(t * 0.2) * 0.35; // slow sway
+      body.rotation.y = Math.sin(clock.getElapsedTime() * 0.25) * 0.4;
       renderer.render(scene, camera);
     };
     animate();
 
     const ro = new ResizeObserver(() => {
-      const w = Math.max(200, container.clientWidth);
-      const h = Math.max(320, container.clientHeight);
+      const w = Math.max(220, container.clientWidth);
+      const h = Math.max(340, container.clientHeight);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
@@ -556,6 +493,7 @@ const APP = {
     ro.observe(container);
     state.ro = ro;
   },
+
 
   createBodySVG(weight, bf, _size, tag) {
     // Minimalist elegant silhouette — no face, no hair, no cartoon detail.
@@ -1380,7 +1318,7 @@ const APP = {
     const waist = 36 - (this.state.user.startWeight - projW) * 0.12;
     document.getElementById('bm-proj-waist').textContent = waist.toFixed(1) + ' in';
 
-    document.getElementById('body-proj').innerHTML = this.createBodySVG(projW, projBF, 120);
+    this.renderBody3D('body-proj', projW, projBF);
   },
 
   renderAll() {
@@ -1403,13 +1341,13 @@ const APP = {
     document.getElementById('bm-cur-bf').textContent = curBF.toFixed(1) + '%';
     document.getElementById('bm-cur-lean').textContent = curLean.toFixed(1) + ' lbs';
     document.getElementById('bm-cur-waist').textContent = curWaist.toFixed(1) + ' in';
-    document.getElementById('body-current').innerHTML = this.createBodySVG(curW, curBF, 120);
+    this.renderBody3D('body-current', curW, curBF);
 
     const goalLean = curLean;
     const goalW = goalLean / (1 - this.state.user.goalBF / 100);
     document.getElementById('bm-goal-w').textContent = goalW.toFixed(1) + ' lbs';
     document.getElementById('bm-goal-lean').textContent = goalLean.toFixed(1) + ' lbs';
-    document.getElementById('body-goal').innerHTML = this.createBodySVG(goalW, this.state.user.goalBF, 120);
+    this.renderBody3D('body-goal', goalW, this.state.user.goalBF);
 
     // Projected body (default day 30)
     this.updateBodyModel(30);
