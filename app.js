@@ -415,7 +415,8 @@ const APP = {
     const animate = () => {
       if (state.cancelled) return;
       requestAnimationFrame(animate);
-      body.rotation.y = Math.sin(clock.getElapsedTime() * 0.25) * 0.45;
+      // Gentle Y sway ± 0.3 rad around the 3/4 rest rotation
+      body.rotation.y = 0.15 + Math.sin(clock.getElapsedTime() * 0.25) * 0.3;
       renderer.render(scene, camera);
     };
     animate();
@@ -433,41 +434,66 @@ const APP = {
     this.loadHumanModel().then((src) => {
       if (state.cancelled) return;
       const clone = src.clone(true);
-      const lineMat = new THREE.LineBasicMaterial({
-        color: wireHex, transparent: true, opacity: 0.85,
+
+      // Pose: drop the arms from T-pose to natural standing position.
+      // Xbot uses Mixamo rig — bone names look like "mixamorigLeftArm"
+      // or "mixamorig:LeftArm" depending on export.
+      clone.traverse((obj) => {
+        if (!obj.isBone) return;
+        const n = obj.name;
+        if (/LeftArm$/.test(n))         obj.rotation.z = -1.25;
+        else if (/RightArm$/.test(n))   obj.rotation.z =  1.25;
+        else if (/LeftForeArm$/.test(n))  obj.rotation.y = 0.1;
+        else if (/RightForeArm$/.test(n)) obj.rotation.y = -0.1;
+        // Slight spine/shoulder relax
+        else if (/LeftShoulder$/.test(n))  obj.rotation.z = -0.05;
+        else if (/RightShoulder$/.test(n)) obj.rotation.z =  0.05;
       });
-      const glowMat = new THREE.LineBasicMaterial({
-        color: 0xc04dff, transparent: true, opacity: 0.28,
+
+      // Apply wireframe material directly on the skinned meshes so bone
+      // posing is respected at render time (EdgesGeometry doesn't skin).
+      const wireMat = new THREE.MeshBasicMaterial({
+        color: wireHex, wireframe: true,
+        transparent: true, opacity: 0.78,
+      });
+      const glowMat = new THREE.MeshBasicMaterial({
+        color: 0xc04dff, wireframe: true,
+        transparent: true, opacity: 0.18,
         blending: THREE.AdditiveBlending, depthWrite: false,
       });
-      const lines = new THREE.Group();
-      clone.updateMatrixWorld(true);
+
+      const meshes = [];
       clone.traverse((obj) => {
-        if (obj.isMesh && obj.geometry) {
-          const edges = new THREE.EdgesGeometry(obj.geometry, 15);
-          const seg = new THREE.LineSegments(edges, lineMat);
-          obj.getWorldPosition(seg.position);
-          obj.getWorldQuaternion(seg.quaternion);
-          obj.getWorldScale(seg.scale);
-          lines.add(seg);
-          const glow = new THREE.LineSegments(edges, glowMat);
-          glow.position.copy(seg.position);
-          glow.quaternion.copy(seg.quaternion);
-          glow.scale.copy(seg.scale).multiplyScalar(1.015);
-          lines.add(glow);
+        if (obj.isMesh || obj.isSkinnedMesh) {
+          obj.material = wireMat;
+          meshes.push(obj);
         }
       });
-      const box = new THREE.Box3().setFromObject(lines);
-      const center = box.getCenter(new THREE.Vector3());
+      body.add(clone);
+
+      // Duplicate the skeleton+skinned-meshes for the glow pass so
+      // both layers animate together. For performance we just add a
+      // second pass of the same clone scaled slightly up.
+      const glowClone = clone.clone(true);
+      glowClone.traverse((obj) => {
+        if (obj.isMesh || obj.isSkinnedMesh) obj.material = glowMat;
+      });
+      glowClone.scale.multiplyScalar(1.012);
+      body.add(glowClone);
+
+      // Frame the camera to exactly fit the posed figure with padding.
+      // Update matrices first so Box3 reflects the pose.
+      body.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(body);
       const size = box.getSize(new THREE.Vector3());
-      // Normalize to height ~2
-      const targetH = 2.0;
-      const s = size.y > 0 ? (targetH / size.y) : 1;
-      lines.position.sub(center);
-      lines.scale.setScalar(s);
-      // Center in view
-      lines.position.y = 0;
-      body.add(lines);
+      const center = box.getCenter(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y * 0.95);
+      const fovRad = camera.fov * Math.PI / 180;
+      const distance = (maxDim / 2) / Math.tan(fovRad / 2) * 1.18;
+      // Slight 3/4 view angle for depth cue
+      body.rotation.y = 0.15;
+      camera.position.set(0, center.y, distance);
+      camera.lookAt(0, center.y, 0);
     }).catch((err) => {
       container.innerHTML = this.createBodySVG(weight, bf, 120);
       console.warn('[prism] human model failed to load:', err.message || err);
