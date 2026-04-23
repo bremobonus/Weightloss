@@ -327,263 +327,158 @@ const APP = {
   },
 
   createBodySVG(weight, bf, _size, tag) {
-    // Anatomical male figure with visible muscle groups at low BF.
-    // Realistic skin gradient; rainbow reserved for the glow/aura.
+    // Minimalist elegant silhouette — no face, no hair, no cartoon detail.
+    // Body morphs via silhouette shape; BF% drives waist/belly fullness.
+    // Soft gradient shading gives 3D feel. Single form, premium look.
     const uid = tag || ('b' + Math.random().toString(36).slice(2, 8));
     const W = 300, H = 640;
     const cx = W / 2;
 
-    // Normalize BF to 0..1 (10% shredded -> 35% obese)
+    // Normalize BF to 0..1 (10% ripped -> 35% obese)
     const fatN = Math.max(0, Math.min(1, (bf - 10) / 25));
     const leanN = 1 - fatN;
     const wN = Math.max(0, Math.min(1, (weight - 160) / 100));
-    const scale = 1 + (wN - 0.5) * 0.06;
+    const scale = 1 + (wN - 0.5) * 0.04;
 
-    // Proportional widths (8-head canon, roughly Vitruvian)
-    const shoulderW = 165 + leanN * 10;          // broader when lean
-    const chestW = 128 + fatN * 22;
-    const waistW = 82 + fatN * 80;                // belly grows most
-    const hipW = 118 + fatN * 24;
-    const thighW = 52 + fatN * 18;
-    const calfW = 38 + fatN * 8;
-    const armUpW = 34 + fatN * 10 + leanN * 4;    // biceps bulge when lean
-    const armLoW = 24 + fatN * 6;
-    const neckW = 40 + fatN * 6;
+    // Proportional measurements (8-head canon)
+    const shoulderW = 162 + leanN * 8;
+    const chestW = 128 + fatN * 18;
+    const waistW = 86 + fatN * 70;
+    const hipW = 116 + fatN * 22;
+    const thighW = 54 + fatN * 16;
+    const calfW = 40 + fatN * 6;
+    const armUpW = 32 + fatN * 8 + leanN * 6;
+    const neckW = 38 + fatN * 4;
 
     // Vertical anchors
-    const headR = 42;
-    const headTop = 20;
-    const chinY = headTop + headR * 2 - 4;
+    const headR = 38;
+    const headTop = 38;
+    const chinY = headTop + headR * 2 - 2;
     const neckY = chinY;
-    const trapY = neckY + 14;
-    const shoulderY = trapY + 16;
-    const pecY = shoulderY + 32;
-    const pecBottomY = pecY + 40;
-    const ribY = pecBottomY + 18;
+    const shoulderY = neckY + 28;
+    const pecY = shoulderY + 30;
+    const pecBottomY = pecY + 42;
+    const ribY = pecBottomY + 20;
     const waistY = ribY + 52;
-    const hipY = waistY + 48;
+    const hipY = waistY + 46;
     const crotchY = hipY + 14;
-    const thighMidY = crotchY + 70;
-    const kneeY = crotchY + 140;
-    const calfMidY = kneeY + 48;
-    const ankleY = kneeY + 100;
-    const footY = ankleY + 8;
+    const thighMidY = crotchY + 76;
+    const kneeY = crotchY + 150;
+    const calfMidY = kneeY + 50;
+    const ankleY = kneeY + 110;
 
-    // Skin tones (warm, realistic)
-    const skinLight = '#f4c795';
-    const skinMid = '#d89a6a';
-    const skinDark = '#9c6a45';
-    const muscleShade = `rgba(80, 40, 20, ${leanN * 0.35})`;
-    const absShade = `rgba(90, 50, 25, ${leanN * 0.45})`;
-
-    // Paths
     const half = (w) => w / 2;
+    const legGap = 8;
 
-    // Head: oval with jawline
-    const headPath = `
+    // Main silhouette: single closed path from head through torso, legs
+    // (arms are separate for cleaner silhouette)
+    const silhouette = `
       M ${cx} ${headTop}
-      C ${cx + headR - 2} ${headTop}, ${cx + headR + 2} ${headTop + 20}, ${cx + headR + 2} ${headTop + headR}
-      C ${cx + headR + 2} ${headTop + headR + 20}, ${cx + headR - 4} ${chinY - 8}, ${cx + 14} ${chinY}
-      L ${cx - 14} ${chinY}
-      C ${cx - headR + 4} ${chinY - 8}, ${cx - headR - 2} ${headTop + headR + 20}, ${cx - headR - 2} ${headTop + headR}
-      C ${cx - headR - 2} ${headTop + 20}, ${cx - headR + 2} ${headTop}, ${cx} ${headTop}
+      C ${cx + headR} ${headTop}, ${cx + headR + 2} ${headTop + headR}, ${cx + headR} ${headTop + headR * 1.4}
+      C ${cx + headR - 4} ${chinY - 6}, ${cx + 18} ${chinY - 2}, ${cx + neckW/2} ${neckY + 4}
+      C ${cx + neckW/2 + 10} ${neckY + 14}, ${cx + half(shoulderW) - 20} ${shoulderY - 6}, ${cx + half(shoulderW)} ${shoulderY}
+      C ${cx + half(chestW) + 10} ${pecY - 4}, ${cx + half(chestW) + 4} ${pecY + 12}, ${cx + half(chestW)} ${pecBottomY}
+      C ${cx + half(chestW) - 2} ${ribY + 4}, ${cx + half(waistW) + 8} ${ribY + 18}, ${cx + half(waistW)} ${waistY}
+      C ${cx + half(waistW) + 2} ${waistY + 14}, ${cx + half(hipW) + 4} ${hipY - 18}, ${cx + half(hipW)} ${hipY}
+      C ${cx + half(hipW)} ${hipY + 10}, ${cx + half(hipW) - 4} ${crotchY - 4}, ${cx + legGap + thighW} ${crotchY}
+      C ${cx + legGap + thighW + 4} ${thighMidY - 10}, ${cx + legGap + thighW} ${thighMidY + 10}, ${cx + legGap + thighW - 4} ${kneeY - 4}
+      C ${cx + legGap + calfW + 4} ${calfMidY - 6}, ${cx + legGap + calfW} ${calfMidY + 16}, ${cx + legGap + calfW - 2} ${ankleY - 4}
+      Q ${cx + legGap + calfW + 4} ${ankleY + 8}, ${cx + legGap + 4} ${ankleY + 8}
+      Q ${cx + legGap} ${ankleY - 6}, ${cx + legGap + 4} ${calfMidY + 8}
+      Q ${cx + legGap + 8} ${kneeY + 4}, ${cx + legGap} ${kneeY - 4}
+      L ${cx + legGap - 2} ${hipY + 12}
+      L ${cx - legGap + 2} ${hipY + 12}
+      L ${cx - legGap} ${kneeY - 4}
+      Q ${cx - legGap - 8} ${kneeY + 4}, ${cx - legGap - 4} ${calfMidY + 8}
+      Q ${cx - legGap} ${ankleY - 6}, ${cx - legGap - 4} ${ankleY + 8}
+      Q ${cx - legGap - calfW - 4} ${ankleY + 8}, ${cx - legGap - calfW + 2} ${ankleY - 4}
+      C ${cx - legGap - calfW} ${calfMidY + 16}, ${cx - legGap - calfW - 4} ${calfMidY - 6}, ${cx - legGap - thighW + 4} ${kneeY - 4}
+      C ${cx - legGap - thighW} ${thighMidY + 10}, ${cx - legGap - thighW - 4} ${thighMidY - 10}, ${cx - legGap - thighW} ${crotchY}
+      C ${cx - half(hipW) + 4} ${crotchY - 4}, ${cx - half(hipW)} ${hipY + 10}, ${cx - half(hipW)} ${hipY}
+      C ${cx - half(hipW) - 4} ${hipY - 18}, ${cx - half(waistW) - 2} ${waistY + 14}, ${cx - half(waistW)} ${waistY}
+      C ${cx - half(waistW) - 8} ${ribY + 18}, ${cx - half(chestW) + 2} ${ribY + 4}, ${cx - half(chestW)} ${pecBottomY}
+      C ${cx - half(chestW) - 4} ${pecY + 12}, ${cx - half(chestW) - 10} ${pecY - 4}, ${cx - half(shoulderW)} ${shoulderY}
+      C ${cx - half(shoulderW) + 20} ${shoulderY - 6}, ${cx - neckW/2 - 10} ${neckY + 14}, ${cx - neckW/2} ${neckY + 4}
+      C ${cx - 18} ${chinY - 2}, ${cx - headR + 4} ${chinY - 6}, ${cx - headR} ${headTop + headR * 1.4}
+      C ${cx - headR - 2} ${headTop + headR}, ${cx - headR} ${headTop}, ${cx} ${headTop}
       Z`;
 
-    // Torso silhouette (shoulders → chest → waist → hips → crotch)
-    const torso = `
-      M ${cx - half(shoulderW)} ${shoulderY}
-      C ${cx - half(chestW) - 8} ${pecY - 10}, ${cx - half(chestW) - 2} ${pecY + 8}, ${cx - half(chestW)} ${pecBottomY}
-      C ${cx - half(chestW) - 2} ${ribY}, ${cx - half(waistW) - 6} ${ribY + 12}, ${cx - half(waistW)} ${waistY}
-      C ${cx - half(waistW) + 2} ${waistY + 12}, ${cx - half(hipW) - 4} ${hipY - 16}, ${cx - half(hipW)} ${hipY}
-      C ${cx - half(hipW)} ${hipY + 12}, ${cx - 36} ${crotchY - 4}, ${cx} ${crotchY}
-      C ${cx + 36} ${crotchY - 4}, ${cx + half(hipW)} ${hipY + 12}, ${cx + half(hipW)} ${hipY}
-      C ${cx + half(hipW) + 4} ${hipY - 16}, ${cx + half(waistW) - 2} ${waistY + 12}, ${cx + half(waistW)} ${waistY}
-      C ${cx + half(waistW) + 6} ${ribY + 12}, ${cx + half(chestW) + 2} ${ribY}, ${cx + half(chestW)} ${pecBottomY}
-      C ${cx + half(chestW) + 2} ${pecY + 8}, ${cx + half(chestW) + 8} ${pecY - 10}, ${cx + half(shoulderW)} ${shoulderY}
-      Z`;
-
-    // Neck with trapezius slope
-    const neck = `
-      M ${cx - neckW/2} ${neckY}
-      L ${cx - neckW/2} ${trapY}
-      C ${cx - neckW/2 - 18} ${trapY + 6}, ${cx - half(shoulderW)} ${shoulderY - 4}, ${cx - half(shoulderW)} ${shoulderY}
-      L ${cx + half(shoulderW)} ${shoulderY}
-      C ${cx + half(shoulderW)} ${shoulderY - 4}, ${cx + neckW/2 + 18} ${trapY + 6}, ${cx + neckW/2} ${trapY}
-      L ${cx + neckW/2} ${neckY}
-      Z`;
-
-    // Deltoid caps
-    const deltL = `M ${cx - half(shoulderW)} ${shoulderY} Q ${cx - half(shoulderW) - 12} ${pecY - 8}, ${cx - half(shoulderW) + 4} ${pecY + 12} Q ${cx - half(shoulderW) + 12} ${pecY}, ${cx - half(shoulderW) + 4} ${shoulderY - 2} Z`;
-    const deltR = `M ${cx + half(shoulderW)} ${shoulderY} Q ${cx + half(shoulderW) + 12} ${pecY - 8}, ${cx + half(shoulderW) - 4} ${pecY + 12} Q ${cx + half(shoulderW) - 12} ${pecY}, ${cx + half(shoulderW) - 4} ${shoulderY - 2} Z`;
-
-    // Pectoral bulges (two domes)
-    const pecL = `M ${cx - 2} ${pecY - 4} C ${cx - half(chestW) + 10} ${pecY - 6}, ${cx - half(chestW) + 4} ${pecBottomY - 4}, ${cx - 4} ${pecBottomY + 4} Z`;
-    const pecR = `M ${cx + 2} ${pecY - 4} C ${cx + half(chestW) - 10} ${pecY - 6}, ${cx + half(chestW) - 4} ${pecBottomY - 4}, ${cx + 4} ${pecBottomY + 4} Z`;
-
-    // Arms — upper (biceps/triceps curve) + forearm + fist
+    // Arms (separate paths — natural gap between arm and torso at hip)
     const armL = `
-      M ${cx - half(shoulderW) + 6} ${shoulderY + 4}
-      C ${cx - half(shoulderW) - 14} ${pecY + 10}, ${cx - half(shoulderW) - armUpW} ${pecBottomY + 20}, ${cx - half(shoulderW) - armUpW + 4} ${ribY + 16}
-      C ${cx - half(shoulderW) - armUpW - 2} ${waistY + 4}, ${cx - half(shoulderW) - armUpW + 6} ${waistY + 14}, ${cx - half(shoulderW) - armUpW + 10} ${waistY + 20}
-      C ${cx - half(shoulderW) - armUpW + 4} ${hipY - 10}, ${cx - half(shoulderW) - armUpW} ${hipY + 12}, ${cx - half(shoulderW) - armUpW + 2} ${hipY + 28}
-      Q ${cx - half(shoulderW) - armUpW - 2} ${hipY + 42}, ${cx - half(shoulderW) - armUpW + 10} ${hipY + 42}
-      Q ${cx - half(shoulderW) - 4} ${hipY + 32}, ${cx - half(shoulderW) + 4} ${hipY + 10}
-      C ${cx - half(shoulderW) + 18} ${waistY}, ${cx - half(shoulderW) + 10} ${pecBottomY}, ${cx - half(shoulderW) + 22} ${shoulderY + 8}
+      M ${cx - half(shoulderW) + 4} ${shoulderY + 2}
+      C ${cx - half(shoulderW) - 10} ${pecY + 12}, ${cx - half(shoulderW) - armUpW + 4} ${pecBottomY + 16}, ${cx - half(shoulderW) - armUpW + 8} ${ribY + 12}
+      C ${cx - half(shoulderW) - armUpW + 2} ${waistY + 4}, ${cx - half(shoulderW) - armUpW + 6} ${waistY + 18}, ${cx - half(shoulderW) - armUpW + 12} ${hipY - 4}
+      C ${cx - half(shoulderW) - armUpW + 4} ${hipY + 10}, ${cx - half(shoulderW) - armUpW + 8} ${hipY + 24}, ${cx - half(shoulderW) - armUpW + 16} ${hipY + 32}
+      Q ${cx - half(shoulderW) - armUpW + 6} ${hipY + 40}, ${cx - half(shoulderW) - armUpW + 20} ${hipY + 40}
+      Q ${cx - half(shoulderW) + 6} ${hipY + 26}, ${cx - half(shoulderW) + 14} ${ribY + 8}
+      C ${cx - half(shoulderW) + 24} ${pecBottomY - 4}, ${cx - half(shoulderW) + 22} ${pecY}, ${cx - half(shoulderW) + 16} ${shoulderY + 6}
       Z`;
     const armR = `
-      M ${cx + half(shoulderW) - 6} ${shoulderY + 4}
-      C ${cx + half(shoulderW) + 14} ${pecY + 10}, ${cx + half(shoulderW) + armUpW} ${pecBottomY + 20}, ${cx + half(shoulderW) + armUpW - 4} ${ribY + 16}
-      C ${cx + half(shoulderW) + armUpW + 2} ${waistY + 4}, ${cx + half(shoulderW) + armUpW - 6} ${waistY + 14}, ${cx + half(shoulderW) + armUpW - 10} ${waistY + 20}
-      C ${cx + half(shoulderW) + armUpW - 4} ${hipY - 10}, ${cx + half(shoulderW) + armUpW} ${hipY + 12}, ${cx + half(shoulderW) + armUpW - 2} ${hipY + 28}
-      Q ${cx + half(shoulderW) + armUpW + 2} ${hipY + 42}, ${cx + half(shoulderW) + armUpW - 10} ${hipY + 42}
-      Q ${cx + half(shoulderW) + 4} ${hipY + 32}, ${cx + half(shoulderW) - 4} ${hipY + 10}
-      C ${cx + half(shoulderW) - 18} ${waistY}, ${cx + half(shoulderW) - 10} ${pecBottomY}, ${cx + half(shoulderW) - 22} ${shoulderY + 8}
+      M ${cx + half(shoulderW) - 4} ${shoulderY + 2}
+      C ${cx + half(shoulderW) + 10} ${pecY + 12}, ${cx + half(shoulderW) + armUpW - 4} ${pecBottomY + 16}, ${cx + half(shoulderW) + armUpW - 8} ${ribY + 12}
+      C ${cx + half(shoulderW) + armUpW - 2} ${waistY + 4}, ${cx + half(shoulderW) + armUpW - 6} ${waistY + 18}, ${cx + half(shoulderW) + armUpW - 12} ${hipY - 4}
+      C ${cx + half(shoulderW) + armUpW - 4} ${hipY + 10}, ${cx + half(shoulderW) + armUpW - 8} ${hipY + 24}, ${cx + half(shoulderW) + armUpW - 16} ${hipY + 32}
+      Q ${cx + half(shoulderW) + armUpW - 6} ${hipY + 40}, ${cx + half(shoulderW) + armUpW - 20} ${hipY + 40}
+      Q ${cx + half(shoulderW) - 6} ${hipY + 26}, ${cx + half(shoulderW) - 14} ${ribY + 8}
+      C ${cx + half(shoulderW) - 24} ${pecBottomY - 4}, ${cx + half(shoulderW) - 22} ${pecY}, ${cx + half(shoulderW) - 16} ${shoulderY + 6}
       Z`;
-
-    // Biceps peak (low BF only)
-    const bicepL = `M ${cx - half(shoulderW) - armUpW + 8} ${pecBottomY} Q ${cx - half(shoulderW) - 2} ${pecBottomY + 14}, ${cx - half(shoulderW) - armUpW + 18} ${ribY + 8} Q ${cx - half(shoulderW) - armUpW + 2} ${ribY}, ${cx - half(shoulderW) - armUpW + 8} ${pecBottomY} Z`;
-    const bicepR = `M ${cx + half(shoulderW) + armUpW - 8} ${pecBottomY} Q ${cx + half(shoulderW) + 2} ${pecBottomY + 14}, ${cx + half(shoulderW) + armUpW - 18} ${ribY + 8} Q ${cx + half(shoulderW) + armUpW - 2} ${ribY}, ${cx + half(shoulderW) + armUpW - 8} ${pecBottomY} Z`;
-
-    // Legs — each with quad bulge, knee, and calf heads
-    const legGap = 8;
-    const legL = `
-      M ${cx - legGap - thighW} ${crotchY}
-      C ${cx - legGap - thighW - 6} ${thighMidY - 10}, ${cx - legGap - thighW - 2} ${thighMidY + 10}, ${cx - legGap - thighW + 2} ${kneeY - 8}
-      Q ${cx - legGap - thighW + 4} ${kneeY}, ${cx - legGap - thighW + 4} ${kneeY + 8}
-      C ${cx - legGap - calfW - 4} ${calfMidY - 10}, ${cx - legGap - calfW - 2} ${calfMidY + 12}, ${cx - legGap - calfW + 4} ${ankleY - 4}
-      Q ${cx - legGap - calfW - 2} ${footY}, ${cx - legGap - 4} ${footY}
-      Q ${cx - legGap - 2} ${ankleY - 4}, ${cx - legGap - 6} ${calfMidY + 4}
-      Q ${cx - legGap} ${kneeY + 4}, ${cx - legGap - 2} ${kneeY - 4}
-      L ${cx - legGap - 4} ${hipY + 14}
-      Z`;
-    const legR = `
-      M ${cx + legGap + thighW} ${crotchY}
-      C ${cx + legGap + thighW + 6} ${thighMidY - 10}, ${cx + legGap + thighW + 2} ${thighMidY + 10}, ${cx + legGap + thighW - 2} ${kneeY - 8}
-      Q ${cx + legGap + thighW - 4} ${kneeY}, ${cx + legGap + thighW - 4} ${kneeY + 8}
-      C ${cx + legGap + calfW + 4} ${calfMidY - 10}, ${cx + legGap + calfW + 2} ${calfMidY + 12}, ${cx + legGap + calfW - 4} ${ankleY - 4}
-      Q ${cx + legGap + calfW + 2} ${footY}, ${cx + legGap + 4} ${footY}
-      Q ${cx + legGap + 2} ${ankleY - 4}, ${cx + legGap + 6} ${calfMidY + 4}
-      Q ${cx + legGap} ${kneeY + 4}, ${cx + legGap + 2} ${kneeY - 4}
-      L ${cx + legGap + 4} ${hipY + 14}
-      Z`;
-
-    // Quads contour (3 lines visible at low BF — inner/outer/center)
-    const quadLines = leanN > 0.3 ? `
-      <path d="M ${cx - legGap - thighW/2 - 10} ${thighMidY - 30} Q ${cx - legGap - thighW/2 - 14} ${thighMidY + 10}, ${cx - legGap - thighW/2 - 8} ${kneeY - 16}" stroke="${muscleShade}" stroke-width="1.5" fill="none"/>
-      <path d="M ${cx - legGap - thighW/2 + 4} ${thighMidY - 26} Q ${cx - legGap - thighW/2 + 2} ${thighMidY + 14}, ${cx - legGap - thighW/2 + 6} ${kneeY - 14}" stroke="${muscleShade}" stroke-width="1.5" fill="none"/>
-      <path d="M ${cx + legGap + thighW/2 + 10} ${thighMidY - 30} Q ${cx + legGap + thighW/2 + 14} ${thighMidY + 10}, ${cx + legGap + thighW/2 + 8} ${kneeY - 16}" stroke="${muscleShade}" stroke-width="1.5" fill="none"/>
-      <path d="M ${cx + legGap + thighW/2 - 4} ${thighMidY - 26} Q ${cx + legGap + thighW/2 - 2} ${thighMidY + 14}, ${cx + legGap + thighW/2 - 6} ${kneeY - 14}" stroke="${muscleShade}" stroke-width="1.5" fill="none"/>
-    ` : '';
-
-    // Abs: 6-pack (rectus abdominis) visible at low BF
-    const abs = leanN > 0.3 ? `
-      <line x1="${cx}" y1="${pecBottomY + 4}" x2="${cx}" y2="${waistY - 6}" stroke="${absShade}" stroke-width="1.8"/>
-      ${[0, 1, 2].map(i => {
-        const y = pecBottomY + 14 + i * 20;
-        return `<line x1="${cx - 18}" y1="${y}" x2="${cx - 4}" y2="${y}" stroke="${absShade}" stroke-width="1.5"/><line x1="${cx + 4}" y1="${y}" x2="${cx + 18}" y2="${y}" stroke="${absShade}" stroke-width="1.5"/>`;
-      }).join('')}
-      <!-- Obliques / V-cuts -->
-      <path d="M ${cx - 22} ${waistY + 2} Q ${cx - 30} ${hipY - 8}, ${cx - 12} ${hipY + 2}" stroke="${absShade}" stroke-width="1.5" fill="none"/>
-      <path d="M ${cx + 22} ${waistY + 2} Q ${cx + 30} ${hipY - 8}, ${cx + 12} ${hipY + 2}" stroke="${absShade}" stroke-width="1.5" fill="none"/>
-    ` : '';
-
-    // Pec crease (center line between pecs)
-    const pecCrease = `<line x1="${cx}" y1="${pecY + 4}" x2="${cx}" y2="${pecBottomY - 4}" stroke="${muscleShade}" stroke-width="1.5"/>`;
-
-    // Belly bulge (high BF) — softer, more volumetric
-    const belly = fatN > 0.25 ? `
-      <ellipse cx="${cx}" cy="${waistY + 18}" rx="${half(waistW) - 14}" ry="${24 + fatN * 18}" fill="rgba(60, 30, 15, ${fatN * 0.25})"/>
-      <ellipse cx="${cx}" cy="${waistY + 14}" rx="${half(waistW) - 20}" ry="${14 + fatN * 10}" fill="rgba(255, 230, 200, ${fatN * 0.3})"/>
-    ` : '';
-
-    // Facial features — subtle
-    const face = `
-      <ellipse cx="${cx - 12}" cy="${headTop + 38}" rx="3" ry="2" fill="rgba(40,20,10,.7)"/>
-      <ellipse cx="${cx + 12}" cy="${headTop + 38}" rx="3" ry="2" fill="rgba(40,20,10,.7)"/>
-      <path d="M ${cx - 2} ${headTop + 46} Q ${cx} ${headTop + 52}, ${cx + 2} ${headTop + 46}" stroke="rgba(40,20,10,.4)" stroke-width="1" fill="none"/>
-      <path d="M ${cx - 10} ${headTop + 62} Q ${cx} ${headTop + 68}, ${cx + 10} ${headTop + 62}" stroke="rgba(60,30,15,.4)" stroke-width="1.2" fill="none"/>
-      <!-- Hair cap -->
-      <path d="M ${cx - headR + 4} ${headTop + 16} Q ${cx} ${headTop - 4}, ${cx + headR - 4} ${headTop + 16} Q ${cx + headR - 8} ${headTop + 8}, ${cx} ${headTop + 4} Q ${cx - headR + 8} ${headTop + 8}, ${cx - headR + 4} ${headTop + 16} Z" fill="#3a2618"/>
-    `;
 
     return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block">
       <defs>
-        <linearGradient id="skin-${uid}" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="${skinLight}"/>
-          <stop offset="50%" stop-color="${skinMid}"/>
-          <stop offset="100%" stop-color="${skinDark}"/>
+        <linearGradient id="body-${uid}" x1="0" y1="0" x2="1" y2="0.3">
+          <stop offset="0%" stop-color="#2a1838"/>
+          <stop offset="35%" stop-color="#54385c"/>
+          <stop offset="65%" stop-color="#8a6a8c"/>
+          <stop offset="100%" stop-color="#c7a8c4"/>
         </linearGradient>
         <linearGradient id="rim-${uid}" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="rgba(192,77,255,.35)"/>
+          <stop offset="0%" stop-color="rgba(192,77,255,.45)"/>
           <stop offset="50%" stop-color="rgba(255,255,255,0)"/>
-          <stop offset="100%" stop-color="rgba(0,212,255,.35)"/>
+          <stop offset="100%" stop-color="rgba(0,212,255,.45)"/>
         </linearGradient>
-        <radialGradient id="hi-${uid}" cx="0.35" cy="0.25" r="0.6">
-          <stop offset="0%" stop-color="rgba(255,255,255,.35)"/>
+        <radialGradient id="hi-${uid}" cx="0.3" cy="0.2" r="0.7">
+          <stop offset="0%" stop-color="rgba(255,255,255,.25)"/>
           <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
         </radialGradient>
-        <filter id="aura-${uid}" x="-30%" y="-20%" width="160%" height="140%">
-          <feGaussianBlur stdDeviation="6"/>
+        <filter id="aura-${uid}" x="-30%" y="-10%" width="160%" height="120%">
+          <feGaussianBlur stdDeviation="10"/>
         </filter>
       </defs>
 
       <g transform="translate(${cx},${H/2}) scale(${scale}) translate(${-cx},${-H/2})">
-        <!-- Rainbow aura/glow behind figure -->
-        <ellipse cx="${cx}" cy="${H/2}" rx="${140 + fatN * 30}" ry="${H/2 - 20}" fill="url(#rim-${uid})" filter="url(#aura-${uid})" opacity="0.6"/>
+        <!-- Ambient rainbow aura -->
+        <ellipse cx="${cx}" cy="${H * 0.52}" rx="${110 + fatN * 20}" ry="${H * 0.46}" fill="url(#rim-${uid})" filter="url(#aura-${uid})" opacity="0.5"/>
 
         <!-- Ground shadow -->
-        <ellipse cx="${cx}" cy="${footY + 14}" rx="${60 + fatN * 16}" ry="6" fill="rgba(0,0,0,.4)"/>
+        <ellipse cx="${cx}" cy="${ankleY + 14}" rx="${58 + fatN * 14}" ry="5" fill="rgba(0,0,0,.5)"/>
 
-        <!-- Legs -->
-        <path d="${legL}" fill="url(#skin-${uid})" stroke="${skinDark}" stroke-width="0.8" stroke-opacity="0.4"/>
-        <path d="${legR}" fill="url(#skin-${uid})" stroke="${skinDark}" stroke-width="0.8" stroke-opacity="0.4"/>
-        ${quadLines}
-        <!-- Kneecaps -->
-        <ellipse cx="${cx - legGap - thighW/2}" cy="${kneeY}" rx="10" ry="7" fill="rgba(60,30,15,${leanN * 0.3 + 0.1})"/>
-        <ellipse cx="${cx + legGap + thighW/2}" cy="${kneeY}" rx="10" ry="7" fill="rgba(60,30,15,${leanN * 0.3 + 0.1})"/>
-        <!-- Calf heads (low BF) -->
-        ${leanN > 0.4 ? `
-          <ellipse cx="${cx - legGap - calfW/2 - 2}" cy="${calfMidY}" rx="6" ry="14" fill="${muscleShade}" opacity="0.6"/>
-          <ellipse cx="${cx + legGap + calfW/2 + 2}" cy="${calfMidY}" rx="6" ry="14" fill="${muscleShade}" opacity="0.6"/>
+        <!-- Back arm (right, behind) -->
+        <path d="${armR}" fill="url(#body-${uid})" opacity="0.9"/>
+
+        <!-- Main body silhouette -->
+        <path d="${silhouette}" fill="url(#body-${uid})"/>
+
+        <!-- Soft center shadow (anatomical ridge) at low BF -->
+        ${leanN > 0.35 ? `
+          <path d="M ${cx} ${pecY + 8} Q ${cx - 1} ${waistY}, ${cx} ${hipY - 6}"
+            stroke="rgba(0,0,0,${leanN * 0.25})" stroke-width="1.5" fill="none"/>
         ` : ''}
 
-        <!-- Arms (behind torso) -->
-        <path d="${armL}" fill="url(#skin-${uid})" stroke="${skinDark}" stroke-width="0.8" stroke-opacity="0.4"/>
-        <path d="${armR}" fill="url(#skin-${uid})" stroke="${skinDark}" stroke-width="0.8" stroke-opacity="0.4"/>
-        ${leanN > 0.3 ? `
-          <path d="${bicepL}" fill="${muscleShade}" opacity="0.5"/>
-          <path d="${bicepR}" fill="${muscleShade}" opacity="0.5"/>
+        <!-- Belly volumetric shade at high BF -->
+        ${fatN > 0.25 ? `
+          <ellipse cx="${cx}" cy="${waistY + 16}" rx="${half(waistW) - 14}" ry="${22 + fatN * 16}"
+            fill="rgba(0,0,0,.12)"/>
         ` : ''}
 
-        <!-- Torso -->
-        <path d="${torso}" fill="url(#skin-${uid})" stroke="${skinDark}" stroke-width="0.8" stroke-opacity="0.4"/>
+        <!-- Soft top-light highlight -->
+        <path d="${silhouette}" fill="url(#hi-${uid})"/>
 
-        <!-- Belly (high BF) -->
-        ${belly}
+        <!-- Front arm (left) -->
+        <path d="${armL}" fill="url(#body-${uid})"/>
+        <path d="${armL}" fill="url(#hi-${uid})" opacity="0.8"/>
 
-        <!-- Pecs -->
-        <path d="${pecL}" fill="${muscleShade}" opacity="0.35"/>
-        <path d="${pecR}" fill="${muscleShade}" opacity="0.35"/>
-        ${pecCrease}
-
-        <!-- Abs -->
-        ${abs}
-
-        <!-- Highlight sheen -->
-        <path d="${torso}" fill="url(#hi-${uid})" opacity="0.5"/>
-
-        <!-- Deltoids -->
-        <path d="${deltL}" fill="url(#skin-${uid})" stroke="${muscleShade}" stroke-width="0.6"/>
-        <path d="${deltR}" fill="url(#skin-${uid})" stroke="${muscleShade}" stroke-width="0.6"/>
-
-        <!-- Neck & traps -->
-        <path d="${neck}" fill="url(#skin-${uid})" stroke="${skinDark}" stroke-width="0.8" stroke-opacity="0.4"/>
-        <!-- Collarbones -->
-        <path d="M ${cx - half(shoulderW) + 12} ${shoulderY + 4} Q ${cx} ${shoulderY + 12}, ${cx + half(shoulderW) - 12} ${shoulderY + 4}" stroke="${muscleShade}" stroke-width="1" fill="none" opacity="0.7"/>
-
-        <!-- Head -->
-        <path d="${headPath}" fill="url(#skin-${uid})" stroke="${skinDark}" stroke-width="0.8" stroke-opacity="0.4"/>
-        ${face}
+        <!-- Subtle rim light from rainbow sides -->
+        <path d="${silhouette}" fill="none" stroke="url(#rim-${uid})" stroke-width="1.5" opacity="0.8"/>
       </g>
     </svg>`;
   },
@@ -1455,7 +1350,14 @@ const APP = {
     const apiKey = this.state.claudeApiKey;
     if (!apiKey) {
       response.className = 'ai-response show';
-      response.innerHTML = '⚠ Set your Anthropic API key in settings (⚙ top-right). Get one at <a href="https://console.anthropic.com/" target="_blank" style="color:#00d4ff">console.anthropic.com</a>.';
+      response.innerHTML = `
+        <div style="font-weight:600;margin-bottom:6px">⚠ Claude API key needed</div>
+        <div style="color:var(--ink-dim);margin-bottom:10px">Get one in 60 seconds — it's free to create, ~$0.003 per log entry.</div>
+        <div class="row gap wrap">
+          <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" class="btn" style="text-decoration:none">Get API key →</a>
+          <button class="btn ghost" onclick="APP.openSettingsForKey()">Paste key into settings</button>
+        </div>
+      `;
       return;
     }
 
@@ -1678,6 +1580,15 @@ Default date is today unless user specifies otherwise. Return ALL extracted data
       chat.innerHTML += `<div class="msg bot">${reply}</div>`;
       chat.scrollTop = chat.scrollHeight;
     }, 400);
+  },
+
+  openSettingsForKey() {
+    document.getElementById('drawer').classList.add('open');
+    this.loadSettings();
+    setTimeout(() => {
+      const el = document.getElementById('s-claude-key');
+      if (el) { el.focus(); el.scrollIntoView({behavior: 'smooth', block: 'center'}); }
+    }, 100);
   },
 
   loadSettings() {
