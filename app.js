@@ -32,10 +32,20 @@ const APP = {
 
   loadState() {
     const saved = localStorage.getItem('prism');
-    this.state = saved ? JSON.parse(saved) : this.defaultState;
-    // Merge new keys
-    Object.assign(this.state.user, this.defaultState.user);
-    Object.assign(this.state, this.defaultState);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        this.state = {
+          ...JSON.parse(JSON.stringify(this.defaultState)),
+          ...parsed,
+          user: {...this.defaultState.user, ...(parsed.user || {})},
+        };
+      } catch (e) {
+        this.state = JSON.parse(JSON.stringify(this.defaultState));
+      }
+    } else {
+      this.state = JSON.parse(JSON.stringify(this.defaultState));
+    }
   },
 
   saveState() {
@@ -168,28 +178,33 @@ const APP = {
 
   updateDailyUI(today) {
     const log = this.state.logs[today] || {};
-    const w = log.weight;
+    // Fallback to latest logged weight, else starting profile
+    const latest = this.getLatestLog();
+    const w = log.weight || latest?.weight || this.state.user.startWeight;
+    const bf = log.bf || latest?.bf || this.state.user.startBF;
+    const isLive = !!log.weight;
 
-    if (w) {
-      document.getElementById('d-weight').textContent = w.toFixed(1);
-      const prev = this.getPrevLog(today);
-      const prevW = prev ? prev.weight : this.state.user.startWeight;
-      const delta = w - prevW;
-      document.getElementById('d-delta').textContent = delta > 0 ? `+${delta.toFixed(1)} lbs` : `${delta.toFixed(1)} lbs`;
+    document.getElementById('d-weight').textContent = w.toFixed(1);
+    const prev = this.getPrevLog(today);
+    const prevW = prev?.weight || this.state.user.startWeight;
+    const delta = w - prevW;
+    const deltaStr = delta === 0
+      ? (isLive ? '±0.0 lbs · logged today' : `start · ${new Date(this.state.planStart).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`)
+      : delta > 0 ? `+${delta.toFixed(1)} lbs` : `${delta.toFixed(1)} lbs`;
+    document.getElementById('d-delta').textContent = deltaStr;
 
-      // BF calc
-      const bf = log.bf || this.state.user.startBF;
-      const lean = w * (1 - bf / 100);
-      document.getElementById('d-bf').textContent = bf.toFixed(1) + '%';
-      document.getElementById('d-lean').textContent = lean.toFixed(1) + ' lbs';
-      document.getElementById('d-bmi').textContent = (703 * w / (this.state.user.height ** 2)).toFixed(1);
+    const lean = w * (1 - bf / 100);
+    document.getElementById('d-bf').textContent = bf.toFixed(1) + '%';
+    document.getElementById('d-lean').textContent = lean.toFixed(1) + ' lbs';
+    // BMI: convert 186cm = 73.23in; BMI = 703 * lbs / in²
+    const heightIn = this.state.user.height / 2.54;
+    document.getElementById('d-bmi').textContent = (703 * w / (heightIn * heightIn)).toFixed(1);
 
-      const goalW = (lean / (1 - this.state.user.goalBF / 100)).toFixed(1);
-      const toGo = goalW - w;
-      document.getElementById('d-togoal').textContent = toGo > 0 ? `${toGo.toFixed(1)} lbs` : 'Goal reached!';
+    const goalW = lean / (1 - this.state.user.goalBF / 100);
+    const toGo = w - goalW;
+    document.getElementById('d-togoal').textContent = toGo > 0 ? `${toGo.toFixed(1)} lbs` : 'Goal reached!';
 
-      this.renderBodyHero(w, bf);
-    }
+    this.renderBodyHero(w, bf);
 
     // Calories today
     const meals = (this.state.meals[today] || []);
@@ -288,7 +303,7 @@ const APP = {
       notes.push(`✓ Trained ${workouts.length} session(s). Keep momentum.`);
     }
 
-    elem.textContent = notes.length ? notes.join(' ') : '✨ All systems nominal. You're on track.';
+    elem.textContent = notes.length ? notes.join(' ') : "✨ All systems nominal. You're on track.";
   },
 
   estimateTDEE() {
@@ -324,6 +339,14 @@ const APP = {
     date.setDate(date.getDate() - 1);
     const key = date.toISOString().split('T')[0];
     return this.state.logs[key];
+  },
+
+  getLatestLog() {
+    const keys = Object.keys(this.state.logs)
+      .filter(k => this.state.logs[k]?.weight)
+      .sort();
+    if (!keys.length) return null;
+    return this.state.logs[keys[keys.length - 1]];
   },
 
   moveLogDate(days) {
@@ -556,7 +579,15 @@ const APP = {
     const labels = [];
     const weights = [];
     const bfs = [];
+    const projected = [];
     const start = new Date(this.state.planStart);
+    const startW = this.state.user.startWeight;
+    const startBF = this.state.user.startBF;
+    const goalBF = this.state.user.goalBF;
+    const leanMass = startW * (1 - startBF / 100);
+    const goalW = leanMass / (1 - goalBF / 100);
+    const totalDays = Math.max(1, (startW - goalW) / 0.5);
+
     for (let i = 0; i <= days; i++) {
       const d = new Date(start);
       d.setDate(d.getDate() + i);
@@ -565,8 +596,10 @@ const APP = {
       labels.push(d.toLocaleDateString('en-US', {month: 'short', day: 'numeric'}));
       weights.push(log?.weight || null);
       bfs.push(log?.bf || null);
+      const projW = Math.max(goalW, startW - (startW - goalW) * Math.min(1, i / totalDays));
+      projected.push(+projW.toFixed(1));
     }
-    return {labels, weights, bfs};
+    return {labels, weights, bfs, projected};
   },
 
   initExerciseCharts() {
@@ -661,25 +694,32 @@ const APP = {
     const u = this.state.user;
     document.getElementById('chip-user').textContent = u.name;
 
-    // Body models
-    const log = this.state.logs[new Date().toISOString().split('T')[0]] || {};
-    if (log.weight) {
-      document.getElementById('bm-cur-w').textContent = log.weight.toFixed(1) + ' lbs';
-      document.getElementById('bm-cur-bf').textContent = (log.bf || this.state.user.startBF).toFixed(1) + '%';
-      const leanMass = log.weight * (1 - (log.bf || this.state.user.startBF) / 100);
-      document.getElementById('bm-cur-lean').textContent = leanMass.toFixed(1) + ' lbs';
-      document.getElementById('bm-cur-waist').textContent = (log.waist || 36).toFixed(1) + ' in';
-      document.getElementById('body-current').innerHTML = this.createBodySVG(log.weight, log.bf || this.state.user.startBF, 120);
-    }
+    // Body models — fall back to starting profile
+    const todayKey = new Date().toISOString().split('T')[0];
+    const log = this.state.logs[todayKey] || {};
+    const latest = this.getLatestLog();
+    const curW = log.weight || latest?.weight || this.state.user.startWeight;
+    const curBF = log.bf || latest?.bf || this.state.user.startBF;
+    const curWaist = log.waist || latest?.waist || 42;
 
-    const goalLean = log.weight ? log.weight * (1 - (log.bf || this.state.user.startBF) / 100) : this.state.user.startWeight * (1 - this.state.user.startBF / 100);
+    const curLean = curW * (1 - curBF / 100);
+    document.getElementById('bm-cur-w').textContent = curW.toFixed(1) + ' lbs';
+    document.getElementById('bm-cur-bf').textContent = curBF.toFixed(1) + '%';
+    document.getElementById('bm-cur-lean').textContent = curLean.toFixed(1) + ' lbs';
+    document.getElementById('bm-cur-waist').textContent = curWaist.toFixed(1) + ' in';
+    document.getElementById('body-current').innerHTML = this.createBodySVG(curW, curBF, 120);
+
+    const goalLean = curLean;
     const goalW = goalLean / (1 - this.state.user.goalBF / 100);
     document.getElementById('bm-goal-w').textContent = goalW.toFixed(1) + ' lbs';
     document.getElementById('bm-goal-lean').textContent = goalLean.toFixed(1) + ' lbs';
     document.getElementById('body-goal').innerHTML = this.createBodySVG(goalW, this.state.user.goalBF, 120);
 
+    // Projected body (default day 30)
+    this.updateBodyModel(30);
+
     // Goal ETA
-    const currentW = log.weight || this.state.user.startWeight;
+    const currentW = curW;
     const daysToGo = Math.ceil((currentW - goalW) / 0.5);
     const eta = new Date(this.state.planStart);
     eta.setDate(eta.getDate() + daysToGo);
@@ -713,31 +753,50 @@ const APP = {
   initDashboardChart() {
     const data = this.getWeightData(60);
     const ctx = document.getElementById('chart-weight');
-    if (!ctx || this.charts.dashboard) return;
+    if (!ctx) return;
+    if (this.charts.dashboard) this.charts.dashboard.destroy();
     this.charts.dashboard = new Chart(ctx, {
       type: 'line',
       data: {
         labels: data.labels,
-        datasets: [{
-          label: 'Weight (lbs)',
-          data: data.weights,
-          borderColor: '#ff2d6f',
-          backgroundColor: 'rgba(255, 45, 111, 0.15)',
-          tension: 0.35,
-          fill: true,
-          pointRadius: 2,
-        }],
+        datasets: [
+          {
+            label: 'Actual',
+            data: data.weights,
+            borderColor: '#ff2d6f',
+            backgroundColor: 'rgba(255, 45, 111, 0.15)',
+            tension: 0.35,
+            fill: true,
+            pointRadius: 3,
+            spanGaps: true,
+          },
+          {
+            label: 'Projected',
+            data: data.projected,
+            borderColor: 'rgba(106, 93, 255, 0.8)',
+            borderDash: [6, 4],
+            backgroundColor: 'transparent',
+            tension: 0.25,
+            pointRadius: 0,
+          },
+        ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: {legend: {display: false}},
+        plugins: {legend: {display: true, position: 'top', labels: {color: '#c9bff0', boxWidth: 12, font: {size: 11}}}},
         scales: {
           y: {ticks: {color: '#8c83b8'}, grid: {color: 'rgba(255,255,255,.05)'}},
-          x: {ticks: {color: '#8c83b8'}, grid: {color: 'rgba(255,255,255,.05)'}},
+          x: {ticks: {color: '#8c83b8', maxTicksLimit: 10}, grid: {color: 'rgba(255,255,255,.05)'}},
         },
       },
     });
+    // Update proj-label
+    const el = document.getElementById('proj-label');
+    if (el) {
+      const proj = data.projected[data.projected.length - 1];
+      el.textContent = `day 60 target · ${proj.toFixed(1)} lbs`;
+    }
   },
 
   updateTrainerUI() {
