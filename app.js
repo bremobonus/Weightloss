@@ -360,7 +360,12 @@ const APP = {
   sketchfabEmbedURL() {
     const params = [
       'autostart=1',
+      'autospin=0.3',         // slow continuous rotation
       'transparent=1',
+      'camera=0',             // use scene default camera
+      'annotations_visible=0',
+      'annotation=0',
+      'annotation_cycle=0',
       'ui_infos=0',
       'ui_controls=0',
       'ui_stop=0',
@@ -373,6 +378,8 @@ const APP = {
       'ui_vr=0',
       'ui_fullscreen=0',
       'ui_annotations=0',
+      'scrollwheel=0',        // disable user zoom
+      'double_click=0',       // disable double-click zoom-to
       'preload=1',
       'dnt=1',
     ].join('&');
@@ -393,11 +400,6 @@ const APP = {
     const scaleX = 1 + fatN * 0.14;
     const scaleY = 1 - fatN * 0.06;
 
-    // Hue rotation: warmer = heavier, cooler = leaner
-    const hueDeg = -fatN * 40;             // negative (warm) when heavy
-    const sat = 1 + Math.abs(fatN) * 0.15;
-    const brightness = 1 - fatN * 0.05;
-
     // Badge color per BF band
     const band = bf <= goalBF + 1 ? 'goal'
                : bf <= goalBF + 5 ? 'close'
@@ -416,9 +418,6 @@ const APP = {
       if (wrap) {
         wrap.style.setProperty('--bf-sx', scaleX);
         wrap.style.setProperty('--bf-sy', scaleY);
-        wrap.style.setProperty('--bf-hue', hueDeg + 'deg');
-        wrap.style.setProperty('--bf-sat', sat);
-        wrap.style.setProperty('--bf-bri', brightness);
       }
       const badge = container.querySelector('.sf-badge');
       if (badge) {
@@ -432,7 +431,7 @@ const APP = {
     const src = this.sketchfabEmbedURL();
     container.innerHTML = `
       <div class="sf-wrap"
-           style="--bf-sx:${scaleX}; --bf-sy:${scaleY}; --bf-hue:${hueDeg}deg; --bf-sat:${sat}; --bf-bri:${brightness};">
+           style="--bf-sx:${scaleX}; --bf-sy:${scaleY};">
         <iframe class="sketchfab-embed"
           title="${this.SKETCHFAB_MODEL_NAME}"
           src="${src}"
