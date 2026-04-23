@@ -348,11 +348,7 @@ const APP = {
   },
 
   renderBodyHero(weight, bf) {
-    if (window.THREE) {
-      this.init3DBody('body-hero', weight, bf);
-    } else {
-      document.getElementById('body-hero').innerHTML = this.createBodySVG(weight, bf, 120);
-    }
+    document.getElementById('body-hero').innerHTML = this.createBodySVG(weight, bf, 120);
   },
 
   init3DBody(containerId, weight, bf) {
@@ -1368,8 +1364,13 @@ const APP = {
     const proj = this.getProjection(180);
     const projW = proj.weights[Math.min(day, proj.weights.length - 1)] || proj.weights[proj.weights.length - 1];
     const startBF = this.state.user.startBF;
+    const goalBF = this.state.user.goalBF;
     const leanMass = this.state.user.startWeight * (1 - startBF / 100);
-    const projBF = Math.max(this.state.user.goalBF, 10 + (startBF - 10) * Math.pow((this.state.user.goalBF - startBF) / (startBF - 10), day / 120));
+
+    // Linear interpolation toward goal (reach goal at the ETA day, then clamp)
+    const totalDays = Math.max(1, (this.state.user.startWeight - (leanMass / (1 - goalBF / 100))) / 0.5);
+    const progress = Math.max(0, Math.min(1, day / totalDays));
+    const projBF = startBF + (goalBF - startBF) * progress;
 
     document.getElementById('bm-proj-day').textContent = day;
     document.getElementById('bm-proj-w').textContent = projW.toFixed(1) + ' lbs';
@@ -1379,8 +1380,7 @@ const APP = {
     const waist = 36 - (this.state.user.startWeight - projW) * 0.12;
     document.getElementById('bm-proj-waist').textContent = waist.toFixed(1) + ' in';
 
-    if (window.THREE) this.init3DBody('body-proj', projW, projBF);
-    else document.getElementById('body-proj').innerHTML = this.createBodySVG(projW, projBF, 120);
+    document.getElementById('body-proj').innerHTML = this.createBodySVG(projW, projBF, 120);
   },
 
   renderAll() {
@@ -1403,15 +1403,13 @@ const APP = {
     document.getElementById('bm-cur-bf').textContent = curBF.toFixed(1) + '%';
     document.getElementById('bm-cur-lean').textContent = curLean.toFixed(1) + ' lbs';
     document.getElementById('bm-cur-waist').textContent = curWaist.toFixed(1) + ' in';
-    if (window.THREE) this.init3DBody('body-current', curW, curBF);
-    else document.getElementById('body-current').innerHTML = this.createBodySVG(curW, curBF, 120);
+    document.getElementById('body-current').innerHTML = this.createBodySVG(curW, curBF, 120);
 
     const goalLean = curLean;
     const goalW = goalLean / (1 - this.state.user.goalBF / 100);
     document.getElementById('bm-goal-w').textContent = goalW.toFixed(1) + ' lbs';
     document.getElementById('bm-goal-lean').textContent = goalLean.toFixed(1) + ' lbs';
-    if (window.THREE) this.init3DBody('body-goal', goalW, this.state.user.goalBF);
-    else document.getElementById('body-goal').innerHTML = this.createBodySVG(goalW, this.state.user.goalBF, 120);
+    document.getElementById('body-goal').innerHTML = this.createBodySVG(goalW, this.state.user.goalBF, 120);
 
     // Projected body (default day 30)
     this.updateBodyModel(30);
