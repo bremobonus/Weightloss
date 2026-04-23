@@ -435,65 +435,58 @@ const APP = {
       if (state.cancelled) return;
       const clone = src.clone(true);
 
-      // Pose: drop the arms from T-pose to natural standing position.
-      // Xbot uses Mixamo rig — bone names look like "mixamorigLeftArm"
-      // or "mixamorig:LeftArm" depending on export.
+      // Pose: drop the arms from T-pose.
       clone.traverse((obj) => {
         if (!obj.isBone) return;
         const n = obj.name;
-        if (/LeftArm$/.test(n))         obj.rotation.z = -1.25;
-        else if (/RightArm$/.test(n))   obj.rotation.z =  1.25;
+        if (/LeftArm$/.test(n))          obj.rotation.z = -1.25;
+        else if (/RightArm$/.test(n))    obj.rotation.z =  1.25;
         else if (/LeftForeArm$/.test(n))  obj.rotation.y = 0.1;
         else if (/RightForeArm$/.test(n)) obj.rotation.y = -0.1;
-        // Slight spine/shoulder relax
-        else if (/LeftShoulder$/.test(n))  obj.rotation.z = -0.05;
-        else if (/RightShoulder$/.test(n)) obj.rotation.z =  0.05;
       });
 
-      // Apply wireframe material directly on the skinned meshes so bone
-      // posing is respected at render time (EdgesGeometry doesn't skin).
+      // Wireframe material — rendered directly on skinned meshes so
+      // bone posing updates per frame via Three.js skinning shader.
       const wireMat = new THREE.MeshBasicMaterial({
         color: wireHex, wireframe: true,
-        transparent: true, opacity: 0.78,
+        transparent: true, opacity: 0.9,
       });
-      const glowMat = new THREE.MeshBasicMaterial({
-        color: 0xc04dff, wireframe: true,
-        transparent: true, opacity: 0.18,
-        blending: THREE.AdditiveBlending, depthWrite: false,
-      });
-
-      const meshes = [];
+      let mainMesh = null;
       clone.traverse((obj) => {
         if (obj.isMesh || obj.isSkinnedMesh) {
           obj.material = wireMat;
-          meshes.push(obj);
+          if (!mainMesh) mainMesh = obj;
         }
       });
+
+      // Scale uniformly so the BIND-POSE height fits target. Box3
+      // on SkinnedMesh returns the bind-pose AABB (not the posed one),
+      // which is what we want for consistent sizing anyway.
+      clone.updateMatrixWorld(true);
+      const bind = new THREE.Box3().setFromObject(clone);
+      const bSize = bind.getSize(new THREE.Vector3());
+      const targetHeight = 2.2;
+      const scale = bSize.y > 0.01 ? (targetHeight / bSize.y) : 1;
+      clone.scale.setScalar(scale);
+
+      // Re-center the (scaled, still in bind-pose) box at origin
+      clone.updateMatrixWorld(true);
+      const box2 = new THREE.Box3().setFromObject(clone);
+      const center = box2.getCenter(new THREE.Vector3());
+      clone.position.sub(center);
+
       body.add(clone);
 
-      // Duplicate the skeleton+skinned-meshes for the glow pass so
-      // both layers animate together. For performance we just add a
-      // second pass of the same clone scaled slightly up.
-      const glowClone = clone.clone(true);
-      glowClone.traverse((obj) => {
-        if (obj.isMesh || obj.isSkinnedMesh) obj.material = glowMat;
-      });
-      glowClone.scale.multiplyScalar(1.012);
-      body.add(glowClone);
-
-      // Frame the camera to exactly fit the posed figure with padding.
-      // Update matrices first so Box3 reflects the pose.
-      body.updateMatrixWorld(true);
-      const box = new THREE.Box3().setFromObject(body);
-      const size = box.getSize(new THREE.Vector3());
-      const center = box.getCenter(new THREE.Vector3());
-      const maxDim = Math.max(size.x, size.y * 0.95);
+      // Camera: distance enough to fit bind-pose width (T-pose arms)
+      // so even before the pose bakes in we're framed correctly.
+      const armSpan = bSize.x * scale;
       const fovRad = camera.fov * Math.PI / 180;
-      const distance = (maxDim / 2) / Math.tan(fovRad / 2) * 1.18;
-      // Slight 3/4 view angle for depth cue
-      body.rotation.y = 0.15;
-      camera.position.set(0, center.y, distance);
-      camera.lookAt(0, center.y, 0);
+      // Fit whichever is larger — height or arm span
+      const fitDim = Math.max(targetHeight, armSpan * 0.55);
+      const distance = (fitDim / 2) / Math.tan(fovRad / 2) * 1.25;
+      camera.position.set(0, 0, distance);
+      camera.lookAt(0, 0, 0);
+      body.rotation.y = 0.15; // 3/4 view
     }).catch((err) => {
       container.innerHTML = this.createBodySVG(weight, bf, 120);
       console.warn('[prism] human model failed to load:', err.message || err);
