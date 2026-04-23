@@ -61,7 +61,7 @@ jobs:
             "mkdir -p '$REMOTE_DIR/models'"
           sshpass -e scp -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 \
             -P 22 \
-            index.html styles.css app.js prism.html .htaccess \
+            index.html styles.css app.js prism.html preview.html .htaccess \
             "$SSH_USER@$SSH_HOST:$REMOTE_DIR/"
           sshpass -e scp -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 \
             -P 22 \
