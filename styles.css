@@ -265,6 +265,38 @@ main{padding:18px 16px 120px 16px; max-width:1400px; margin:0 auto}
   color:var(--ink);
 }
 
+/* AI card — primary input surface */
+.ai-card{
+  background: linear-gradient(180deg, rgba(192,77,255,.12), rgba(0,212,255,.06));
+  border:1px solid rgba(192,77,255,.35);
+  box-shadow: 0 0 40px rgba(192,77,255,.15), var(--shadow);
+}
+.ai-card::before{opacity:.6}
+.ai-input-row{display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:start}
+.ai-input-row textarea{
+  resize: vertical; min-height: 56px; font-size:15px;
+  background: rgba(0,0,0,.25);
+  border: 1px solid rgba(255,255,255,.2);
+}
+.ai-input-row textarea:focus{
+  border-color: rgba(192,77,255,.7);
+  box-shadow: 0 0 0 3px rgba(192,77,255,.15);
+}
+.ai-input-row .btn{min-width: 140px; align-self: stretch; height: auto}
+.ai-hint{margin-top:6px}
+.ai-response{
+  margin-top:10px; padding:10px 12px;
+  border-radius:10px; background: rgba(255,255,255,.05);
+  border:1px solid var(--line); display:none; font-size:13px;
+}
+.ai-response.show{display:block}
+.ai-response.loading{
+  background: var(--rainbow-soft);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse{50%{opacity:.5}}
+@media(max-width:640px){.ai-input-row{grid-template-columns:1fr}}
+
 /* Inputs */
 input, select, textarea, button{font: inherit; color: inherit}
 input[type=number], input[type=text], input[type=date], input:not([type]), select, textarea{
