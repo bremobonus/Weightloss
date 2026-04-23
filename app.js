@@ -382,28 +382,72 @@ const APP = {
   renderSketchfabBody(containerId, weight, bf) {
     const container = typeof containerId === 'string' ? document.getElementById(containerId) : containerId;
     if (!container) return;
-    // Avoid re-inserting the iframe if it's already there — reloads the model
-    if (container.querySelector('iframe.sketchfab-embed')) return;
+
+    // Compute visual modifiers from BF
+    const goalBF = this.state.user.goalBF || 15;
+    const startBF = this.state.user.startBF || 30;
+    // Normalize to -1 (leaner than goal) .. 0 (at goal) .. +1 (at start)
+    const fatN = Math.max(-0.5, Math.min(1.2, (bf - goalBF) / Math.max(1, startBF - goalBF)));
+
+    // Horizontal-vertical scale: heavier = wider/shorter, leaner = narrower/taller
+    const scaleX = 1 + fatN * 0.14;
+    const scaleY = 1 - fatN * 0.06;
+
+    // Hue rotation: warmer = heavier, cooler = leaner
+    const hueDeg = -fatN * 40;             // negative (warm) when heavy
+    const sat = 1 + Math.abs(fatN) * 0.15;
+    const brightness = 1 - fatN * 0.05;
+
+    // Badge color per BF band
+    const band = bf <= goalBF + 1 ? 'goal'
+               : bf <= goalBF + 5 ? 'close'
+               : bf <= goalBF + 10 ? 'work'
+               : 'start';
+    const bandColor = {
+      goal: '#33ff99',
+      close: '#00d4ff',
+      work: '#ffd400',
+      start: '#ff7a1a',
+    }[band];
+
+    // If iframe already present, just update overlay styling and skip reinsert
+    if (container.querySelector('iframe.sketchfab-embed')) {
+      const wrap = container.querySelector('.sf-wrap');
+      if (wrap) {
+        wrap.style.setProperty('--bf-sx', scaleX);
+        wrap.style.setProperty('--bf-sy', scaleY);
+        wrap.style.setProperty('--bf-hue', hueDeg + 'deg');
+        wrap.style.setProperty('--bf-sat', sat);
+        wrap.style.setProperty('--bf-bri', brightness);
+      }
+      const badge = container.querySelector('.sf-badge');
+      if (badge) {
+        badge.textContent = bf.toFixed(1) + '% BF';
+        badge.style.background = bandColor;
+        badge.style.color = band === 'work' ? '#0a0020' : band === 'close' ? '#0a0020' : band === 'goal' ? '#001a0a' : '#1a0800';
+      }
+      return;
+    }
+
     const src = this.sketchfabEmbedURL();
     container.innerHTML = `
-      <div class="sf-wrap">
+      <div class="sf-wrap"
+           style="--bf-sx:${scaleX}; --bf-sy:${scaleY}; --bf-hue:${hueDeg}deg; --bf-sat:${sat}; --bf-bri:${brightness};">
         <iframe class="sketchfab-embed"
           title="${this.SKETCHFAB_MODEL_NAME}"
           src="${src}"
           frameborder="0"
           allow="autoplay; fullscreen; xr-spatial-tracking"
           allowfullscreen
-          mozallowfullscreen="true"
-          webkitallowfullscreen="true"
-          execution-while-out-of-viewport
-          execution-while-not-rendered
-          web-share
           loading="lazy">
         </iframe>
+        <div class="sf-badge" style="background:${bandColor}; color:${band === 'start' ? '#1a0800' : '#0a0020'}">
+          ${bf.toFixed(1)}% BF
+        </div>
         <a class="sf-credit"
            href="https://sketchfab.com/3d-models/wireframe-man-${this.SKETCHFAB_MODEL_ID}"
            target="_blank" rel="noopener">
-           ${this.SKETCHFAB_MODEL_NAME} · ${this.SKETCHFAB_MODEL_AUTHOR} · Sketchfab
+           ${this.SKETCHFAB_MODEL_NAME} · ${this.SKETCHFAB_MODEL_AUTHOR}
         </a>
       </div>
     `;
