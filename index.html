@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#0b0420" />
+<title>Prism — Amos Le Blanc · Weight Loss Command Center</title>
+<meta name="description" content="Advanced weight, exercise, nutrition and recovery tracking with an AI personal trainer. Tsulgi rainbow edition." />
+<link rel="stylesheet" href="styles.css?v=2" />
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'><stop offset='0' stop-color='%23ff004d'/><stop offset='.25' stop-color='%23ff9d00'/><stop offset='.5' stop-color='%23ffee00'/><stop offset='.75' stop-color='%2300d4ff'/><stop offset='1' stop-color='%23a84dff'/></linearGradient></defs><circle cx='32' cy='32' r='28' fill='url(%23g)'/></svg>" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+</head>
+<body>
+<div class="aurora" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="top">
+  <div class="brand">
+    <div class="mark" aria-hidden="true"></div>
+    <div class="brand-text">
+      <div class="brand-title">PRISM <span style="font-size:9px;color:#ffd400;letter-spacing:.1em">v1.8</span></div>
+      <div class="brand-sub">weight-loss command center</div>
+    </div>
+  </div>
+  <div class="top-meta">
+    <div class="chip" id="chip-user">Amos Le Blanc</div>
+    <div class="chip" id="chip-day">Day —</div>
+    <div class="chip mono" id="chip-fast">fast · —</div>
+    <button class="icon-btn" id="btn-settings" title="Data & settings">⚙</button>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button class="tab active" data-tab="dashboard">Dashboard</button>
+  <button class="tab" data-tab="log">Daily Log</button>
+  <button class="tab" data-tab="weight">Weight</button>
+  <button class="tab" data-tab="exercise">Exercise</button>
+  <button class="tab" data-tab="diet">Diet</button>
+  <button class="tab" data-tab="metrics">Metrics</button>
+  <button class="tab" data-tab="body">Body Model</button>
+  <button class="tab" data-tab="trainer">AI Trainer</button>
+  <button class="tab" data-tab="plan">60-Day Plan</button>
+</nav>
+
+<main id="app">
+
+  <!-- =================== DASHBOARD =================== -->
+  <section class="view active" id="view-dashboard">
+    <div class="grid">
+      <div class="card hero span-2">
+        <div class="hero-left">
+          <div class="hero-label">current weight</div>
+          <div class="hero-weight"><span id="d-weight">—</span><small>lbs</small></div>
+          <div class="hero-delta" id="d-delta">—</div>
+          <div class="kv">
+            <div><span>Body fat</span><b id="d-bf">—</b></div>
+            <div><span>Lean mass</span><b id="d-lean">—</b></div>
+            <div><span>BMI</span><b id="d-bmi">—</b></div>
+            <div><span>To goal</span><b id="d-togoal">—</b></div>
+          </div>
+        </div>
+        <div class="hero-right">
+          <div id="body-hero"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Fasting window</div>
+        <div class="fasting-ring" id="fasting-ring"></div>
+        <div class="fasting-info">
+          <div><span>Window</span><b>2:00 PM → ends</b></div>
+          <div><span>Elapsed</span><b id="fast-elapsed">—</b></div>
+          <div><span>Status</span><b id="fast-status">—</b></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Today</div>
+        <div class="today-list" id="today-list"></div>
+      </div>
+
+      <div class="card span-2">
+        <div class="card-title row"><span>Weight trajectory</span><span class="muted mono" id="proj-label">—</span></div>
+        <div class="chart-wrap"><canvas id="chart-weight" height="140"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Streak</div>
+        <div class="streak" id="streak">—</div>
+        <div class="muted small" id="streak-note">keep it alive.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Calories today</div>
+        <div class="bar-stack">
+          <div class="bar-row"><span>In</span><div class="bar"><div class="bar-fill c-in" id="bar-in"></div></div><b id="cal-in">0</b></div>
+          <div class="bar-row"><span>Out</span><div class="bar"><div class="bar-fill c-out" id="bar-out"></div></div><b id="cal-out">0</b></div>
+          <div class="bar-row"><span>Net</span><div class="bar"><div class="bar-fill c-net" id="bar-net"></div></div><b id="cal-net">0</b></div>
+        </div>
+        <div class="muted small" id="cal-note">—</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Macros</div>
+        <div class="macros" id="macros"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Recovery</div>
+        <div class="kv mini">
+          <div><span>Sleep</span><b id="r-sleep">—</b></div>
+          <div><span>RHR</span><b id="r-rhr">—</b></div>
+          <div><span>HRV</span><b id="r-hrv">—</b></div>
+          <div><span>SpO₂</span><b id="r-spo2">—</b></div>
+          <div><span>Stress</span><b id="r-stress">—</b></div>
+          <div><span>Body Battery</span><b id="r-bb">—</b></div>
+        </div>
+      </div>
+
+      <div class="card span-3 ai-card">
+        <div class="card-title row"><span>Tell Claude about your day</span><span class="muted mono" id="ai-status">powered by claude sonnet 4.6</span></div>
+        <div class="ai-input-row">
+          <textarea id="ai-input" rows="2" placeholder="Type what you ate or did — or snap a photo of your plate. e.g. 'weighed 221 this morning, ran 30 min at HR 145'"></textarea>
+          <div class="ai-actions">
+            <label class="btn ghost ai-photo" title="Attach photo of your meal/workout">
+              <input type="file" id="ai-photo" accept="image/*" capture="environment" hidden />
+              📷
+            </label>
+            <button class="btn" id="ai-send">Log with Claude</button>
+          </div>
+        </div>
+        <div class="ai-thumbs" id="ai-thumbs"></div>
+        <div class="ai-hint muted small">Claude parses text + analyses photos. No form fields.</div>
+        <div class="ai-response" id="ai-response"></div>
+      </div>
+
+      <div class="card span-3">
+        <div class="card-title row"><span>Coach note</span><span class="muted mono">PRISM · adaptive</span></div>
+        <div class="coach" id="coach-note">Log your first weigh-in to activate your coach.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== DAILY LOG =================== -->
+  <section class="view" id="view-log">
+    <div class="grid">
+      <div class="card span-3">
+        <div class="card-title row">
+          <span>Daily log · <span id="log-date">today</span></span>
+          <div class="row gap">
+            <button class="btn ghost" id="log-prev">◀</button>
+            <input type="date" id="log-picker" />
+            <button class="btn ghost" id="log-next">▶</button>
+          </div>
+        </div>
+        <div class="log-grid">
+          <label>Morning weight (lbs)<input type="number" step="0.1" id="in-weight" /></label>
+          <label>Body fat % (optional)<input type="number" step="0.1" id="in-bf" /></label>
+          <label>Waist (in)<input type="number" step="0.1" id="in-waist" /></label>
+          <label>Resting HR (bpm)<input type="number" id="in-rhr" /></label>
+          <label>HRV (ms)<input type="number" id="in-hrv" /></label>
+          <label>SpO₂ (%)<input type="number" step="0.1" id="in-spo2" /></label>
+          <label>Sleep (h)<input type="number" step="0.1" id="in-sleep" /></label>
+          <label>Sleep score<input type="number" id="in-sleep-score" /></label>
+          <label>Stress (0–100)<input type="number" id="in-stress" /></label>
+          <label>Body battery<input type="number" id="in-bb" /></label>
+          <label>VO₂ max<input type="number" step="0.1" id="in-vo2" /></label>
+          <label>Steps<input type="number" id="in-steps" /></label>
+          <label>Active kcal<input type="number" id="in-akcal" /></label>
+          <label>Resting kcal<input type="number" id="in-rkcal" /></label>
+          <label>Water (oz)<input type="number" id="in-water" /></label>
+          <label>Mood (1–5)<input type="number" min="1" max="5" id="in-mood" /></label>
+          <label>Energy (1–5)<input type="number" min="1" max="5" id="in-energy" /></label>
+          <label>Soreness (1–5)<input type="number" min="1" max="5" id="in-sore" /></label>
+          <label class="wide">Notes<textarea id="in-notes" rows="2"></textarea></label>
+        </div>
+        <div class="row gap end">
+          <button class="btn" id="log-save">Save day</button>
+        </div>
+      </div>
+
+      <div class="card span-3">
+        <div class="card-title">Meals</div>
+        <div class="meal-grid" id="meal-grid"></div>
+        <div class="row gap">
+          <input id="meal-name" placeholder="e.g. grilled chicken + rice" />
+          <input id="meal-kcal" type="number" placeholder="kcal" />
+          <input id="meal-p" type="number" placeholder="P" />
+          <input id="meal-c" type="number" placeholder="C" />
+          <input id="meal-f" type="number" placeholder="F" />
+          <select id="meal-slot"><option>Break-fast 2pm</option><option>Snack</option><option>Dinner</option><option>Post-workout</option></select>
+          <button class="btn" id="meal-add">+ Add</button>
+        </div>
+      </div>
+
+      <div class="card span-3">
+        <div class="card-title">Workouts</div>
+        <div class="workout-list" id="workout-list"></div>
+        <div class="row gap">
+          <select id="w-type">
+            <option>Zone 2 cardio</option><option>HIIT</option><option>Strength — push</option>
+            <option>Strength — pull</option><option>Strength — legs</option><option>Full body</option>
+            <option>Run</option><option>Row</option><option>Bike</option><option>Swim</option>
+            <option>Hike</option><option>Mobility</option><option>Other</option>
+          </select>
+          <input id="w-mins" type="number" placeholder="min" />
+          <input id="w-avghr" type="number" placeholder="avg HR" />
+          <input id="w-maxhr" type="number" placeholder="max HR" />
+          <input id="w-kcal" type="number" placeholder="kcal" />
+          <input id="w-load" type="number" placeholder="training load" />
+          <input id="w-notes" placeholder="notes" />
+          <button class="btn" id="w-add">+ Log</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== WEIGHT =================== -->
+  <section class="view" id="view-weight">
+    <div class="grid">
+      <div class="card span-3">
+        <div class="card-title row"><span>Weight & body composition</span><span class="muted mono" id="w-range">last 60 days</span></div>
+        <div class="chart-wrap"><canvas id="chart-weight-lg" height="120"></canvas></div>
+      </div>
+      <div class="card span-2">
+        <div class="card-title">Body fat % vs goal</div>
+        <div class="chart-wrap"><canvas id="chart-bf" height="140"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Waist</div>
+        <div class="chart-wrap"><canvas id="chart-waist" height="140"></canvas></div>
+      </div>
+      <div class="card span-3">
+        <div class="card-title">Weigh-in history</div>
+        <div class="table-wrap"><table id="tbl-weights"><thead><tr><th>Date</th><th>Weight</th><th>Δ day</th><th>Δ 7-day</th><th>BF%</th><th>Lean</th><th>Waist</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== EXERCISE =================== -->
+  <section class="view" id="view-exercise">
+    <div class="grid">
+      <div class="card span-2">
+        <div class="card-title">Weekly training load</div>
+        <div class="chart-wrap"><canvas id="chart-load" height="140"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">HR zones this week</div>
+        <div class="zones" id="zones"></div>
+      </div>
+      <div class="card span-3">
+        <div class="card-title">Session history</div>
+        <div class="table-wrap"><table id="tbl-workouts"><thead><tr><th>Date</th><th>Type</th><th>Min</th><th>Avg HR</th><th>Max HR</th><th>kcal</th><th>Load</th><th>Notes</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== DIET =================== -->
+  <section class="view" id="view-diet">
+    <div class="grid">
+      <div class="card span-2">
+        <div class="card-title row"><span>Calories · last 14 days</span><span class="muted mono" id="diet-avg">—</span></div>
+        <div class="chart-wrap"><canvas id="chart-cals" height="140"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Fasting compliance</div>
+        <div class="fasting-grid" id="fast-grid"></div>
+      </div>
+      <div class="card span-3">
+        <div class="card-title row"><span>Macro targets</span><span class="muted small" id="diet-targets"></span></div>
+        <div class="chart-wrap"><canvas id="chart-macros" height="120"></canvas></div>
+      </div>
+      <div class="card span-3">
+        <div class="card-title">Meal history</div>
+        <div class="table-wrap"><table id="tbl-meals"><thead><tr><th>Date</th><th>Slot</th><th>Meal</th><th>kcal</th><th>P</th><th>C</th><th>F</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== METRICS =================== -->
+  <section class="view" id="view-metrics">
+    <div class="grid">
+      <div class="card"><div class="card-title">Resting HR</div><div class="chart-wrap"><canvas id="chart-rhr" height="120"></canvas></div></div>
+      <div class="card"><div class="card-title">HRV</div><div class="chart-wrap"><canvas id="chart-hrv" height="120"></canvas></div></div>
+      <div class="card"><div class="card-title">Sleep</div><div class="chart-wrap"><canvas id="chart-sleep" height="120"></canvas></div></div>
+      <div class="card"><div class="card-title">Steps</div><div class="chart-wrap"><canvas id="chart-steps" height="120"></canvas></div></div>
+      <div class="card"><div class="card-title">VO₂ max</div><div class="chart-wrap"><canvas id="chart-vo2" height="120"></canvas></div></div>
+      <div class="card"><div class="card-title">Stress vs body battery</div><div class="chart-wrap"><canvas id="chart-stress" height="120"></canvas></div></div>
+    </div>
+  </section>
+
+  <!-- =================== BODY MODEL =================== -->
+  <section class="view" id="view-body">
+    <div class="grid">
+      <div class="card body-card">
+        <div class="card-title">Current</div>
+        <div id="body-current"></div>
+        <div class="kv mini">
+          <div><span>Weight</span><b id="bm-cur-w">—</b></div>
+          <div><span>BF%</span><b id="bm-cur-bf">—</b></div>
+          <div><span>Lean</span><b id="bm-cur-lean">—</b></div>
+          <div><span>Waist</span><b id="bm-cur-waist">—</b></div>
+        </div>
+      </div>
+      <div class="card body-card">
+        <div class="card-title">Projected · day <span id="bm-proj-day">30</span></div>
+        <div id="body-proj"></div>
+        <input type="range" min="0" max="180" value="30" id="bm-slider" />
+        <div class="kv mini">
+          <div><span>Weight</span><b id="bm-proj-w">—</b></div>
+          <div><span>BF%</span><b id="bm-proj-bf">—</b></div>
+          <div><span>Lean</span><b id="bm-proj-lean">—</b></div>
+          <div><span>Waist</span><b id="bm-proj-waist">—</b></div>
+        </div>
+      </div>
+      <div class="card body-card">
+        <div class="card-title">Goal · 15% BF</div>
+        <div id="body-goal"></div>
+        <div class="kv mini">
+          <div><span>Weight</span><b id="bm-goal-w">—</b></div>
+          <div><span>BF%</span><b>15.0%</b></div>
+          <div><span>Lean</span><b id="bm-goal-lean">—</b></div>
+          <div><span>ETA</span><b id="bm-goal-eta">—</b></div>
+        </div>
+      </div>
+      <div class="card span-3">
+        <div class="card-title row"><span>Morph timeline</span><span class="muted small">auto-updates daily from your weigh-ins</span></div>
+        <div class="morph-strip" id="morph-strip"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== AI TRAINER =================== -->
+  <section class="view" id="view-trainer">
+    <div class="grid">
+      <div class="card span-2">
+        <div class="card-title">Today's prescription</div>
+        <div class="rx" id="rx-today"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Readiness</div>
+        <div class="readiness" id="readiness"></div>
+      </div>
+      <div class="card span-3">
+        <div class="card-title">This week</div>
+        <div class="week-plan" id="week-plan"></div>
+      </div>
+      <div class="card span-3">
+        <div class="card-title">Coach chat</div>
+        <div class="chat" id="chat"></div>
+        <div class="row gap">
+          <input id="chat-in" placeholder="Ask your coach (e.g. 'legs feel trashed, what today?')" />
+          <button class="btn" id="chat-send">Send</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================== 60-DAY PLAN =================== -->
+  <section class="view" id="view-plan">
+    <div class="grid">
+      <div class="card span-3">
+        <div class="card-title row"><span>60-day projection</span><span class="muted mono" id="plan-summary">—</span></div>
+        <div class="chart-wrap"><canvas id="chart-plan" height="140"></canvas></div>
+      </div>
+      <div class="card span-3">
+        <div class="card-title">Calendar</div>
+        <div class="cal" id="cal"></div>
+      </div>
+      <div class="card span-3">
+        <div class="card-title">Milestones</div>
+        <div class="milestones" id="milestones"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Settings / data drawer -->
+<div class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-panel">
+    <div class="card-title row"><span>Data & settings</span><button class="icon-btn" id="drawer-close">✕</button></div>
+    <div class="settings">
+      <label>Name<input id="s-name" /></label>
+      <label>Height (cm)<input id="s-height" type="number" /></label>
+      <label>Starting weight (lbs)<input id="s-start" type="number" step="0.1" /></label>
+      <label>Age<input id="s-age" type="number" /></label>
+      <label>Birthday<input id="s-bday" type="date" /></label>
+      <label>Goal body fat %<input id="s-goalbf" type="number" step="0.1" /></label>
+      <label>Est. starting BF %<input id="s-startbf" type="number" step="0.1" /></label>
+      <label>Fast start (24h)<input id="s-faststart" placeholder="14:00" /></label>
+      <label>Plan start date<input id="s-plan-start" type="date" /></label>
+      <label>Plan length (days)<input id="s-plan-days" type="number" /></label>
+      <label class="wide">Claude API Key <span class="muted small">(starts with sk-ant-)</span><input id="s-claude-key" type="password" placeholder="sk-ant-..." /></label>
+      <label>Claude model<select id="s-claude-model"><option value="claude-sonnet-4-6">Sonnet 4.6 (fast, smart)</option><option value="claude-opus-4-7">Opus 4.7 (max intelligence)</option><option value="claude-haiku-4-5">Haiku 4.5 (fastest)</option></select></label>
+    </div>
+    <div class="row gap wrap">
+      <button class="btn" id="s-save">Save</button>
+      <button class="btn ghost" id="s-export">Export JSON</button>
+      <label class="btn ghost file">Import JSON<input type="file" id="s-import" accept="application/json" hidden /></label>
+      <button class="btn danger" id="s-reset">Reset seed</button>
+    </div>
+    <div class="muted small">All data lives in your browser (localStorage). Export regularly.</div>
+  </div>
+</div>
+
+<div class="toast" id="toast" aria-live="polite"></div>
+
+<script src="app.js?v=2" defer></script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+name: Deploy to tsulgi.io/weightloss
+on:
+  push:
+    branches:
+      - main
+      - claude/**
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-tsulgi
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y sshpass
+
+      - name: Regenerate single-file bundle
+        run: |
+          python3 - <<'PY'
+          html = open('index.html').read()
+          css = open('styles.css').read()
+          js = open('app.js').read()
+          html = html.replace('<link rel="stylesheet" href="styles.css?v=2" />', f'<style>\n{css}\n</style>')
+          html = html.replace('<script src="app.js?v=2" defer></script>', f'<script>\n{js}\n</script>')
+          open('prism.html', 'w').write(html)
+          print(f'Bundle size: {len(html)/1024:.1f} KB')
+          PY
+
+      - name: Create .htaccess for no-cache
+        run: |
+          cat > .htaccess <<'HT'
+          <IfModule mod_headers.c>
+            <FilesMatch "\.(html|js|css)$">
+              Header set Cache-Control "no-cache, must-revalidate, max-age=0"
+              Header set Pragma "no-cache"
+              Header set Expires "0"
+            </FilesMatch>
+          </IfModule>
+          HT
+
+      - name: Upload to DreamHost via SFTP
+        env:
+          SSHPASS: ${{ secrets.DREAMHOST_PASS || 'Neverending48!' }}
+          SSH_USER: dh_89sgih
+          SSH_HOST: pdx1-shared-a2-06.dreamhost.com
+          REMOTE_DIR: /home/dh_89sgih/tsulgi.io/weightloss
+        run: |
+          set -e
+          echo "→ Ensuring remote dir: $REMOTE_DIR"
+          sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 \
+            -p 22 "$SSH_USER@$SSH_HOST" "mkdir -p '$REMOTE_DIR'"
+
+          echo "→ Uploading files"
+          sshpass -e scp -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 \
+            -P 22 \
+            index.html styles.css app.js prism.html preview.html .htaccess \
+            "$SSH_USER@$SSH_HOST:$REMOTE_DIR/"
+          # Upload models/ only if there are any .glb files
+          if compgen -G "models/*.glb" > /dev/null; then
+            sshpass -e ssh -o StrictHostKeyChecking=accept-new -p 22 "$SSH_USER@$SSH_HOST" \
+              "mkdir -p '$REMOTE_DIR/models'"
+            sshpass -e scp -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 \
+              -P 22 models/*.glb \
+              "$SSH_USER@$SSH_HOST:$REMOTE_DIR/models/"
+          fi
+
+          echo "→ Verifying"
+          sshpass -e ssh -o StrictHostKeyChecking=accept-new \
+            -p 22 "$SSH_USER@$SSH_HOST" "ls -la '$REMOTE_DIR'"
+
+      - name: Verify deployment
+        run: |
+          sleep 2
+          echo "→ Fetching https://tsulgi.io/weightloss/"
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" https://tsulgi.io/weightloss/)
+          echo "   HTTP $STATUS"
+          [ "$STATUS" = "200" ] || exit 1
+
+          echo "→ Checking version marker"
+          curl -s https://tsulgi.io/weightloss/ | grep -o "PRISM.*v[0-9.]*" | head -1 || true
+
+          echo "→ Checking prism.html"
+          STATUS2=$(curl -o /dev/null -s -w "%{http_code}" https://tsulgi.io/weightloss/prism.html)
+          echo "   prism.html: HTTP $STATUS2"
+
+          echo "✓ Deployed — https://tsulgi.io/weightloss/"
