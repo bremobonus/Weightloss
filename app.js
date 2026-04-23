@@ -351,12 +351,29 @@ const APP = {
     this.renderBody3D('body-hero', weight, bf);
   },
 
+  loadHumanModel() {
+    if (this._humanModelPromise) return this._humanModelPromise;
+    if (!window.THREE || !window.GLTFLoader) {
+      return Promise.reject(new Error('Three.js not ready'));
+    }
+    this._humanModelPromise = new Promise((resolve, reject) => {
+      const loader = new window.GLTFLoader();
+      loader.load('models/human.glb',
+        (gltf) => resolve(gltf.scene),
+        undefined,
+        (err) => { this._humanModelPromise = null; reject(err); });
+    });
+    return this._humanModelPromise;
+  },
+
   renderBody3D(containerId, weight, bf) {
     const container = typeof containerId === 'string' ? document.getElementById(containerId) : containerId;
     if (!container) return;
-    if (!window.THREE) {
+
+    if (!window.THREE || !window.GLTFLoader) {
       container.innerHTML = this.createBodySVG(weight, bf, 120);
-      setTimeout(() => { if (window.THREE) this.renderBody3D(containerId, weight, bf); }, 800);
+      window.addEventListener('three-ready',
+        () => this.renderBody3D(containerId, weight, bf), {once: true});
       return;
     }
 
@@ -372,113 +389,33 @@ const APP = {
     const H = Math.max(340, container.clientHeight || 400);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 50);
-    camera.position.set(0, 0, 4.2);
-    camera.lookAt(0, -0.2, 0);
+    const camera = new THREE.PerspectiveCamera(28, W / H, 0.1, 100);
+    camera.position.set(0, 1.1, 3.5);
+    camera.lookAt(0, 0.9, 0);
 
     const renderer = new THREE.WebGLRenderer({alpha: true, antialias: true});
     renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.setSize(W, H);
     container.appendChild(renderer.domElement);
 
-    const fatN = Math.max(0, Math.min(1, (bf - 10) / 25));
-    const leanN = 1 - fatN;
-
-    const wireMat = new THREE.MeshBasicMaterial({
-      color: 0x00d4ff, wireframe: true, transparent: true, opacity: 0.78,
-    });
-    const glowMat = new THREE.MeshBasicMaterial({
-      color: 0xc04dff, wireframe: true, transparent: true, opacity: 0.22,
-      blending: THREE.AdditiveBlending, depthWrite: false,
-    });
-
     const body = new THREE.Group();
-
-    const addWire = (geom, x, y, z, opts = {}) => {
-      const m = new THREE.Mesh(geom, wireMat);
-      m.position.set(x, y, z);
-      if (opts.rotZ) m.rotation.z = opts.rotZ;
-      if (opts.scale) m.scale.copy(opts.scale);
-      body.add(m);
-      const g = new THREE.Mesh(geom, glowMat);
-      g.position.set(x, y, z);
-      g.scale.setScalar(1.08);
-      if (opts.scale) g.scale.multiply(opts.scale);
-      if (opts.rotZ) g.rotation.z = opts.rotZ;
-      body.add(g);
-      return m;
-    };
-
-    const V = THREE.Vector3;
-
-    // HEAD
-    addWire(new THREE.SphereGeometry(0.19, 14, 12), 0, 0.56, 0);
-    // NECK
-    addWire(new THREE.CylinderGeometry(0.09, 0.13, 0.16, 12, 1), 0, 0.38, 0);
-    // CHEST
-    addWire(new THREE.CylinderGeometry(0.38, 0.28, 0.5, 16, 4), 0, 0.14, 0,
-      {scale: new V(1.1, 1, 0.72)});
-    // WAIST — morphs with BF
-    const waistR = 0.22 + fatN * 0.16;
-    addWire(new THREE.CylinderGeometry(waistR, waistR + 0.04, 0.26, 16, 2), 0, -0.17, 0,
-      {scale: new V(1, 1, 0.72 + fatN * 0.25)});
-    // BELLY (high BF)
-    if (fatN > 0.2) {
-      addWire(new THREE.SphereGeometry(0.22 + fatN * 0.1, 14, 10), 0, -0.14, 0.12,
-        {scale: new V(1 + fatN * 0.2, 0.8, 0.55)});
-    }
-    // HIPS
-    addWire(new THREE.CylinderGeometry(0.28, 0.22, 0.2, 14, 2), 0, -0.37, 0,
-      {scale: new V(1.08, 1, 0.75)});
-    // SHOULDERS
-    addWire(new THREE.SphereGeometry(0.14, 12, 10), -0.44, 0.24, 0);
-    addWire(new THREE.SphereGeometry(0.14, 12, 10), 0.44, 0.24, 0);
-    // UPPER ARMS
-    const armR = 0.09 + fatN * 0.015;
-    const upArm = new THREE.CylinderGeometry(armR, armR * 0.88, 0.5, 12, 2);
-    addWire(upArm, -0.5, -0.03, 0, {rotZ: 0.12});
-    addWire(upArm, 0.5, -0.03, 0, {rotZ: -0.12});
-    // BICEPS (low BF)
-    if (leanN > 0.35) {
-      const bic = new THREE.SphereGeometry(0.09, 10, 8);
-      addWire(bic, -0.48, 0.03, 0.03, {scale: new V(0.9, 1.3, 0.6)});
-      addWire(bic, 0.48, 0.03, 0.03, {scale: new V(0.9, 1.3, 0.6)});
-    }
-    // ELBOWS
-    addWire(new THREE.SphereGeometry(0.08, 10, 8), -0.56, -0.3, 0);
-    addWire(new THREE.SphereGeometry(0.08, 10, 8), 0.56, -0.3, 0);
-    // FOREARMS
-    const fa = new THREE.CylinderGeometry(0.08, 0.06, 0.42, 12, 2);
-    addWire(fa, -0.58, -0.53, 0);
-    addWire(fa, 0.58, -0.53, 0);
-    // HANDS
-    addWire(new THREE.SphereGeometry(0.085, 10, 8), -0.6, -0.77, 0);
-    addWire(new THREE.SphereGeometry(0.085, 10, 8), 0.6, -0.77, 0);
-    // THIGHS
-    const thighR = 0.14 + fatN * 0.03;
-    const thigh = new THREE.CylinderGeometry(thighR, thighR * 0.82, 0.55, 14, 3);
-    addWire(thigh, -0.15, -0.7, 0);
-    addWire(thigh, 0.15, -0.7, 0);
-    // KNEES
-    addWire(new THREE.SphereGeometry(0.1, 10, 8), -0.15, -1.0, 0);
-    addWire(new THREE.SphereGeometry(0.1, 10, 8), 0.15, -1.0, 0);
-    // CALVES
-    const calf = new THREE.CylinderGeometry(0.11, 0.07, 0.48, 14, 2);
-    addWire(calf, -0.15, -1.26, 0);
-    addWire(calf, 0.15, -1.26, 0);
-    // FEET
-    addWire(new THREE.BoxGeometry(0.14, 0.08, 0.28), -0.15, -1.53, 0.06);
-    addWire(new THREE.BoxGeometry(0.14, 0.08, 0.28), 0.15, -1.53, 0.06);
-
     scene.add(body);
 
     const state = {cancelled: false, renderer, scene, container};
     container._three = state;
+
+    const fatN = Math.max(0, Math.min(1, (bf - 10) / 25));
+    const leanN = 1 - fatN;
+
+    // Color: lean = cyan, heavier = violet
+    const hue = 0.52 + (1 - leanN) * 0.2;
+    const wireHex = new THREE.Color().setHSL(hue, 0.95, 0.6).getHex();
+
     const clock = new THREE.Clock();
     const animate = () => {
       if (state.cancelled) return;
       requestAnimationFrame(animate);
-      body.rotation.y = Math.sin(clock.getElapsedTime() * 0.25) * 0.4;
+      body.rotation.y = Math.sin(clock.getElapsedTime() * 0.25) * 0.45;
       renderer.render(scene, camera);
     };
     animate();
@@ -492,8 +429,50 @@ const APP = {
     });
     ro.observe(container);
     state.ro = ro;
-  },
 
+    this.loadHumanModel().then((src) => {
+      if (state.cancelled) return;
+      const clone = src.clone(true);
+      const lineMat = new THREE.LineBasicMaterial({
+        color: wireHex, transparent: true, opacity: 0.85,
+      });
+      const glowMat = new THREE.LineBasicMaterial({
+        color: 0xc04dff, transparent: true, opacity: 0.28,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      });
+      const lines = new THREE.Group();
+      clone.updateMatrixWorld(true);
+      clone.traverse((obj) => {
+        if (obj.isMesh && obj.geometry) {
+          const edges = new THREE.EdgesGeometry(obj.geometry, 15);
+          const seg = new THREE.LineSegments(edges, lineMat);
+          obj.getWorldPosition(seg.position);
+          obj.getWorldQuaternion(seg.quaternion);
+          obj.getWorldScale(seg.scale);
+          lines.add(seg);
+          const glow = new THREE.LineSegments(edges, glowMat);
+          glow.position.copy(seg.position);
+          glow.quaternion.copy(seg.quaternion);
+          glow.scale.copy(seg.scale).multiplyScalar(1.015);
+          lines.add(glow);
+        }
+      });
+      const box = new THREE.Box3().setFromObject(lines);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      // Normalize to height ~2
+      const targetH = 2.0;
+      const s = size.y > 0 ? (targetH / size.y) : 1;
+      lines.position.sub(center);
+      lines.scale.setScalar(s);
+      // Center in view
+      lines.position.y = 0;
+      body.add(lines);
+    }).catch((err) => {
+      container.innerHTML = this.createBodySVG(weight, bf, 120);
+      console.warn('[prism] human model failed to load:', err.message || err);
+    });
+  },
 
   createBodySVG(weight, bf, _size, tag) {
     // Minimalist elegant silhouette — no face, no hair, no cartoon detail.
