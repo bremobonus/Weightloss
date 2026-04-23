@@ -331,210 +331,202 @@ const APP = {
 
   init3DBody(containerId, weight, bf) {
     const container = typeof containerId === 'string' ? document.getElementById(containerId) : containerId;
-    if (!container || !window.THREE) return;
+    if (!container) return;
 
-    // Cleanup any previous renderer
+    // If Three isn't loaded yet, retry on the ready event
+    if (!window.THREE || !window.MarchingCubes) {
+      const retry = () => this.init3DBody(containerId, weight, bf);
+      window.addEventListener('three-ready', retry, {once: true});
+      return;
+    }
+
+    // Cleanup previous
     if (container._three) {
       container._three.cancelled = true;
       try { container._three.renderer.dispose(); } catch(e) {}
+      if (container._three.ro) container._three.ro.disconnect();
       container.innerHTML = '';
     }
 
     const THREE = window.THREE;
+    const MarchingCubes = window.MarchingCubes;
     const W = Math.max(200, container.clientWidth || 300);
-    const H = Math.max(260, container.clientHeight || 400);
+    const H = Math.max(320, container.clientHeight || 400);
 
     const scene = new THREE.Scene();
-
-    const camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 100);
-    camera.position.set(0, 1.5, 5.5);
-    camera.lookAt(0, 1.35, 0);
+    const camera = new THREE.PerspectiveCamera(28, W / H, 0.1, 50);
+    camera.position.set(0, 0, 3.6);
+    camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({alpha: true, antialias: true});
     renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.setSize(W, H);
-    renderer.outputColorSpace = THREE.SRGBColorSpace || THREE.sRGBEncoding;
+    renderer.outputColorSpace = THREE.SRGBColorSpace || 3001;
     container.appendChild(renderer.domElement);
 
-    // Lighting — studio key/fill/rim setup
-    scene.add(new THREE.AmbientLight(0x1f2030, 0.35));
-    const key = new THREE.DirectionalLight(0xffffff, 1.3);
-    key.position.set(-3, 5, 4);
+    // Studio lighting
+    scene.add(new THREE.AmbientLight(0x1a1f2e, 0.45));
+    const key = new THREE.DirectionalLight(0xffffff, 1.4);
+    key.position.set(-3, 4, 3.5);
     scene.add(key);
-    const fill = new THREE.DirectionalLight(0x8aa0ff, 0.5);
-    fill.position.set(3, 1, -1);
+    const fill = new THREE.DirectionalLight(0x9aafcf, 0.55);
+    fill.position.set(3, 1, 0.5);
     scene.add(fill);
-    // Rainbow rim lights from behind
-    const rimA = new THREE.PointLight(0xc04dff, 1.8, 10);
-    rimA.position.set(-1.8, 1.8, -1.5);
-    scene.add(rimA);
-    const rimB = new THREE.PointLight(0x00d4ff, 1.8, 10);
-    rimB.position.set(1.8, 1.8, -1.5);
-    scene.add(rimB);
-    const underLight = new THREE.PointLight(0xff2d6f, 0.6, 6);
-    underLight.position.set(0, 0.3, 1);
-    scene.add(underLight);
+    // Rainbow rim
+    const rimL = new THREE.PointLight(0xc04dff, 2.2, 8);
+    rimL.position.set(-2, 1.5, -2);
+    scene.add(rimL);
+    const rimR = new THREE.PointLight(0x00d4ff, 2.2, 8);
+    rimR.position.set(2, 1.5, -2);
+    scene.add(rimR);
+    const rimBot = new THREE.PointLight(0xff2d6f, 0.8, 5);
+    rimBot.position.set(0, -1.8, 1);
+    scene.add(rimBot);
 
-    // Skin material — matte with subtle blue undertone (matches reference)
-    const skinMat = new THREE.MeshPhongMaterial({
-      color: 0xc4cfdd,
-      specular: 0x6e7890,
-      shininess: 28,
+    // Matte mannequin material (matches reference — soft blue-gray)
+    const mat = new THREE.MeshPhongMaterial({
+      color: 0xbccad8,
+      specular: 0x555f70,
+      shininess: 30,
       flatShading: false,
     });
 
-    const body = new THREE.Group();
+    // Metaballs via MarchingCubes — scalar field evaluated to smooth mesh
+    const resolution = 56;
+    const mc = new MarchingCubes(resolution, mat, true, true, 80000);
+    mc.isolation = 80;
+    mc.scale.setScalar(1.0);
+    mc.position.set(0, 0, 0);
 
     const fatN = Math.max(0, Math.min(1, (bf - 10) / 25));
     const leanN = 1 - fatN;
-    const wScale = 1 + (Math.max(0, Math.min(1, (weight - 160) / 100)) - 0.5) * 0.06;
 
-    const addMesh = (geom, x, y, z) => {
-      const m = new THREE.Mesh(geom, skinMat);
-      m.position.set(x, y, z);
-      body.add(m);
-      return m;
+    // addBall coords: 0..1 space, strength ≈ 0..1, subtract ≈ 8..20
+    // Helper converts world-space coords (centered) to 0..1
+    const ab = (x, y, z, strength, subtract = 12) => {
+      mc.addBall(0.5 + x, 0.5 + y, 0.5 + z, strength, subtract);
     };
 
-    // --- HEAD (featureless oval) ---
-    const head = addMesh(new THREE.SphereGeometry(0.16, 40, 40), 0, 2.95, 0);
-    head.scale.set(0.92, 1.18, 0.95);
+    // Anatomical metaball layout.
+    // X = horizontal (±), Y = vertical, Z = depth (+ toward camera)
+    // Coordinates in -0.5..+0.5 range centered at origin.
 
-    // Jaw chamfer (slight subtractive shape faked with small sphere)
-    const jaw = addMesh(new THREE.SphereGeometry(0.11, 20, 20), 0, 2.78, 0.02);
-    jaw.scale.set(0.95, 0.7, 0.9);
+    // --- HEAD ---
+    ab(0, 0.40, 0, 0.16);              // cranium
+    ab(0, 0.34, 0.02, 0.12);           // jaw chamfer
+    ab(0, 0.28, 0, 0.07);              // neck top
 
-    // --- NECK ---
-    const neck = addMesh(new THREE.CylinderGeometry(0.075, 0.11, 0.18, 20), 0, 2.68, 0);
-
-    // --- TRAPS + SHOULDER LINE ---
-    const traps = addMesh(new THREE.SphereGeometry(0.22, 24, 24), 0, 2.55, 0);
-    traps.scale.set(1.9, 0.35, 0.7);
-
-    // --- DELTOIDS (rounded shoulder caps) ---
-    addMesh(new THREE.SphereGeometry(0.14, 24, 24), -0.45, 2.48, 0).scale.set(1, 1.15, 1);
-    addMesh(new THREE.SphereGeometry(0.14, 24, 24), 0.45, 2.48, 0).scale.set(1, 1.15, 1);
+    // --- TRAPS / SHOULDERS ---
+    ab(-0.08, 0.245, 0, 0.10);
+    ab(0.08, 0.245, 0, 0.10);
+    ab(-0.16, 0.22, 0, 0.13);          // deltoid L
+    ab(0.16, 0.22, 0, 0.13);           // deltoid R
 
     // --- PECS ---
-    const pecL = addMesh(new THREE.SphereGeometry(0.2, 28, 28), -0.17, 2.27, 0.12);
-    pecL.scale.set(1.1, 0.65, 0.55);
-    const pecR = addMesh(new THREE.SphereGeometry(0.2, 28, 28), 0.17, 2.27, 0.12);
-    pecR.scale.set(1.1, 0.65, 0.55);
+    ab(-0.07, 0.16, 0.06, 0.14);
+    ab(0.07, 0.16, 0.06, 0.14);
+    ab(-0.07, 0.12, 0.05, 0.10);       // pec lower fullness
+    ab(0.07, 0.12, 0.05, 0.10);
 
-    // --- UPPER TORSO (rib cage) ---
-    const ribs = addMesh(new THREE.CylinderGeometry(0.36, 0.3, 0.55, 28), 0, 2.1, 0);
-    ribs.scale.set(1.15, 1, 0.72);
+    // --- RIB CAGE / UPPER TORSO ---
+    ab(-0.07, 0.07, 0.03, 0.11);
+    ab(0.07, 0.07, 0.03, 0.11);
+    ab(-0.12, 0.02, 0, 0.09);          // serratus
+    ab(0.12, 0.02, 0, 0.09);
 
-    // --- ABS BLOCK ---
-    const absW = 0.32 - fatN * 0.04;
-    const absH = 0.42;
-    const abs = addMesh(new THREE.CylinderGeometry(absW + 0.02, absW, absH, 20), 0, 1.78, 0.05);
-    abs.scale.set(1, 1, 0.7 + fatN * 0.15);
+    // --- ABS (6-pack appearance via placement; visible at low BF) ---
+    const absBulge = 0.05 + leanN * 0.04;
+    ab(-0.04, 0.02, 0.04 + leanN * 0.02, absBulge);
+    ab(0.04, 0.02, 0.04 + leanN * 0.02, absBulge);
+    ab(-0.04, -0.02, 0.04 + leanN * 0.02, absBulge);
+    ab(0.04, -0.02, 0.04 + leanN * 0.02, absBulge);
+    ab(-0.04, -0.06, 0.04 + leanN * 0.02, absBulge);
+    ab(0.04, -0.06, 0.04 + leanN * 0.02, absBulge);
 
-    // --- BELLY (high BF) ---
+    // --- WAIST (narrow at low BF, full at high BF) ---
+    const waistR = 0.08 + fatN * 0.08;
+    ab(0, -0.08, 0, waistR);
+    // Belly high-BF bulge
     if (fatN > 0.2) {
-      const belly = addMesh(new THREE.SphereGeometry(0.25 + fatN * 0.12, 28, 28), 0, 1.72, 0.14);
-      belly.scale.set(1 + fatN * 0.3, 0.9, 0.55 + fatN * 0.2);
+      ab(0, -0.06, 0.08 + fatN * 0.05, 0.11 + fatN * 0.1);
+      ab(0, -0.10, 0.08 + fatN * 0.05, 0.10 + fatN * 0.08);
     }
-
-    // --- WAIST ---
-    const waistR = 0.26 + fatN * 0.2;
-    const waist = addMesh(new THREE.CylinderGeometry(waistR, waistR + 0.04, 0.3, 24), 0, 1.52, 0);
-    waist.scale.set(1, 1, 0.68 + fatN * 0.3);
 
     // --- HIPS ---
-    const hips = addMesh(new THREE.CylinderGeometry(0.32, 0.26, 0.3, 24), 0, 1.28, 0);
-    hips.scale.set(1.08, 1, 0.72);
-
-    // --- GLUTES (slight back bulge) ---
-    const glutes = addMesh(new THREE.SphereGeometry(0.2, 20, 20), 0, 1.2, -0.1);
-    glutes.scale.set(1.3, 0.6, 0.8);
+    ab(-0.10, -0.14, 0, 0.12);
+    ab(0.10, -0.14, 0, 0.12);
+    ab(0, -0.15, -0.06, 0.11);         // glutes
 
     // --- ARMS ---
-    // Upper arm L/R with biceps bulge
-    const upArmGeom = new THREE.CylinderGeometry(0.095 + fatN * 0.02, 0.08 + fatN * 0.015, 0.58, 18);
-    const upArmL = addMesh(upArmGeom, -0.55, 2.15, 0);
-    upArmL.rotation.z = 0.08;
-    const upArmR = addMesh(upArmGeom, 0.55, 2.15, 0);
-    upArmR.rotation.z = -0.08;
-    if (leanN > 0.35) {
-      const bic = new THREE.SphereGeometry(0.075, 18, 18);
-      const bicL = addMesh(bic, -0.52, 2.2, 0.05);
-      bicL.scale.set(1, 1.4, 0.7);
-      const bicR = addMesh(bic, 0.52, 2.2, 0.05);
-      bicR.scale.set(1, 1.4, 0.7);
-    }
+    // Deltoid-to-bicep
+    ab(-0.22, 0.16, 0, 0.11);
+    ab(0.22, 0.16, 0, 0.11);
+    // Biceps (with peak at low BF)
+    const bicep = 0.08 + leanN * 0.03;
+    ab(-0.26, 0.08, 0.02, bicep);
+    ab(0.26, 0.08, 0.02, bicep);
+    ab(-0.27, 0.02, 0, 0.08);          // triceps back
+    ab(0.27, 0.02, 0, 0.08);
     // Elbows
-    addMesh(new THREE.SphereGeometry(0.075, 16, 16), -0.6, 1.82, 0);
-    addMesh(new THREE.SphereGeometry(0.075, 16, 16), 0.6, 1.82, 0);
+    ab(-0.28, -0.05, 0, 0.07);
+    ab(0.28, -0.05, 0, 0.07);
     // Forearms
-    const faGeom = new THREE.CylinderGeometry(0.078, 0.058, 0.5, 18);
-    const faL = addMesh(faGeom, -0.62, 1.55, 0);
-    faL.rotation.z = -0.03;
-    const faR = addMesh(faGeom, 0.62, 1.55, 0);
-    faR.rotation.z = 0.03;
-    // Hands
-    const handL = addMesh(new THREE.SphereGeometry(0.08, 16, 16), -0.64, 1.26, 0);
-    handL.scale.set(0.75, 1.1, 0.3);
-    const handR = addMesh(new THREE.SphereGeometry(0.08, 16, 16), 0.64, 1.26, 0);
-    handR.scale.set(0.75, 1.1, 0.3);
+    ab(-0.30, -0.12, 0, 0.075);
+    ab(0.30, -0.12, 0, 0.075);
+    ab(-0.30, -0.18, 0, 0.06);
+    ab(0.30, -0.18, 0, 0.06);
+    // Hands (fists)
+    ab(-0.31, -0.24, 0, 0.06);
+    ab(0.31, -0.24, 0, 0.06);
 
     // --- LEGS ---
-    const thighR = 0.16 + fatN * 0.04;
-    const thighGeom = new THREE.CylinderGeometry(thighR, thighR * 0.78, 0.6, 22);
-    addMesh(thighGeom, -0.14, 0.92, 0);
-    addMesh(thighGeom, 0.14, 0.92, 0);
-    // Quad bulge (low BF)
-    if (leanN > 0.35) {
-      const quadGeom = new THREE.SphereGeometry(0.09, 16, 16);
-      const quadL = addMesh(quadGeom, -0.14, 0.9, 0.08);
-      quadL.scale.set(0.9, 1.6, 0.5);
-      const quadR = addMesh(quadGeom, 0.14, 0.9, 0.08);
-      quadR.scale.set(0.9, 1.6, 0.5);
-    }
+    // Upper thigh (massive near hip)
+    const thigh = 0.12 + fatN * 0.025;
+    ab(-0.08, -0.22, 0, thigh);
+    ab(0.08, -0.22, 0, thigh);
+    // Quad bulges (low BF shows definition)
+    const quad = 0.08 + leanN * 0.02;
+    ab(-0.08, -0.28, 0.04, quad);
+    ab(0.08, -0.28, 0.04, quad);
+    // Mid thigh
+    ab(-0.08, -0.34, 0, 0.095);
+    ab(0.08, -0.34, 0, 0.095);
     // Knees
-    addMesh(new THREE.SphereGeometry(0.11, 18, 18), -0.14, 0.58, 0.03);
-    addMesh(new THREE.SphereGeometry(0.11, 18, 18), 0.14, 0.58, 0.03);
-    // Calves
-    const calfGeom = new THREE.CylinderGeometry(0.12, 0.08, 0.52, 20);
-    addMesh(calfGeom, -0.14, 0.3, 0);
-    addMesh(calfGeom, 0.14, 0.3, 0);
-    // Calf muscle bulge
-    if (leanN > 0.3) {
-      const cmL = addMesh(new THREE.SphereGeometry(0.08, 16, 16), -0.14, 0.36, -0.04);
-      cmL.scale.set(0.9, 1.5, 0.6);
-      const cmR = addMesh(new THREE.SphereGeometry(0.08, 16, 16), 0.14, 0.36, -0.04);
-      cmR.scale.set(0.9, 1.5, 0.6);
-    }
-    // Ankles
-    addMesh(new THREE.SphereGeometry(0.07, 14, 14), -0.14, 0.04, 0);
-    addMesh(new THREE.SphereGeometry(0.07, 14, 14), 0.14, 0.04, 0);
-    // Feet
-    const footL = addMesh(new THREE.BoxGeometry(0.14, 0.08, 0.32), -0.14, -0.02, 0.08);
-    footL.geometry = new THREE.BoxGeometry(0.14, 0.08, 0.32);
-    const footR = addMesh(new THREE.BoxGeometry(0.14, 0.08, 0.32), 0.14, -0.02, 0.08);
+    ab(-0.08, -0.40, 0.01, 0.08);
+    ab(0.08, -0.40, 0.01, 0.08);
+    // Calves (bulges back)
+    const calf = 0.085 + leanN * 0.015;
+    ab(-0.08, -0.45, -0.02, calf);
+    ab(0.08, -0.45, -0.02, calf);
+    // Lower leg
+    ab(-0.08, -0.49, 0, 0.065);
+    ab(0.08, -0.49, 0, 0.065);
 
-    body.scale.setScalar(wScale);
+    // Generate the mesh
+    mc.update();
+    scene.add(mc);
+
+    // Rotation group
+    const body = new THREE.Group();
+    body.add(mc);
     scene.add(body);
 
-    // Animation
     const state = {cancelled: false, renderer, scene, container};
     container._three = state;
 
     const clock = new THREE.Clock();
-    function animate() {
+    const animate = () => {
       if (state.cancelled) return;
       requestAnimationFrame(animate);
       const t = clock.getElapsedTime();
-      body.rotation.y = Math.sin(t * 0.25) * 0.35; // slow sway
+      body.rotation.y = Math.sin(t * 0.2) * 0.35; // slow sway
       renderer.render(scene, camera);
-    }
+    };
     animate();
 
-    // Resize handling
     const ro = new ResizeObserver(() => {
       const w = Math.max(200, container.clientWidth);
-      const h = Math.max(260, container.clientHeight);
+      const h = Math.max(320, container.clientHeight);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);

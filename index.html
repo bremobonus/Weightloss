@@ -9,7 +9,21 @@
 <link rel="stylesheet" href="styles.css?v=2" />
 <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' x2='1' y1='0' y2='1'><stop offset='0' stop-color='%23ff004d'/><stop offset='.25' stop-color='%23ff9d00'/><stop offset='.5' stop-color='%23ffee00'/><stop offset='.75' stop-color='%2300d4ff'/><stop offset='1' stop-color='%23a84dff'/></linearGradient></defs><circle cx='32' cy='32' r='28' fill='url(%23g)'/></svg>" />
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js" defer></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+  import * as THREE from 'three';
+  import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
+  window.THREE = THREE;
+  window.MarchingCubes = MarchingCubes;
+  window.dispatchEvent(new Event('three-ready'));
+</script>
 </head>
 <body>
 <div class="aurora" aria-hidden="true"></div>
@@ -19,7 +33,7 @@
   <div class="brand">
     <div class="mark" aria-hidden="true"></div>
     <div class="brand-text">
-      <div class="brand-title">PRISM <span style="font-size:9px;color:#ffd400;letter-spacing:.1em">v0.6</span></div>
+      <div class="brand-title">PRISM <span style="font-size:9px;color:#ffd400;letter-spacing:.1em">v0.7</span></div>
       <div class="brand-sub">weight-loss command center</div>
     </div>
   </div>
