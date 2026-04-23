@@ -348,149 +348,65 @@ const APP = {
   },
 
   renderBodyHero(weight, bf) {
-    this.renderBody3D('body-hero', weight, bf);
+    this.renderSketchfabBody('body-hero', weight, bf);
   },
 
-  loadHumanModel() {
-    if (this._humanModelPromise) return this._humanModelPromise;
-    if (!window.THREE || !window.GLTFLoader) {
-      return Promise.reject(new Error('Three.js not ready'));
-    }
-    this._humanModelPromise = new Promise((resolve, reject) => {
-      const loader = new window.GLTFLoader();
-      loader.load('models/human.glb',
-        (gltf) => resolve(gltf.scene),
-        undefined,
-        (err) => { this._humanModelPromise = null; reject(err); });
-    });
-    return this._humanModelPromise;
+  // Sketchfab "Wireframe Man" by Doomcubus
+  // https://sketchfab.com/3d-models/wireframe-man-44764d68c52a43a7aa981761f508d10b
+  SKETCHFAB_MODEL_ID: '44764d68c52a43a7aa981761f508d10b',
+  SKETCHFAB_MODEL_AUTHOR: 'Doomcubus',
+  SKETCHFAB_MODEL_NAME: 'Wireframe Man',
+
+  sketchfabEmbedURL() {
+    const params = [
+      'autostart=1',
+      'transparent=1',
+      'ui_infos=0',
+      'ui_controls=0',
+      'ui_stop=0',
+      'ui_inspector=0',
+      'ui_watermark_link=0',
+      'ui_hint=0',
+      'ui_ar=0',
+      'ui_help=0',
+      'ui_settings=0',
+      'ui_vr=0',
+      'ui_fullscreen=0',
+      'ui_annotations=0',
+      'preload=1',
+      'dnt=1',
+    ].join('&');
+    return `https://sketchfab.com/models/${this.SKETCHFAB_MODEL_ID}/embed?${params}`;
   },
 
-  renderBody3D(containerId, weight, bf) {
+  renderSketchfabBody(containerId, weight, bf) {
     const container = typeof containerId === 'string' ? document.getElementById(containerId) : containerId;
     if (!container) return;
-
-    if (!window.THREE || !window.GLTFLoader) {
-      container.innerHTML = this.createBodySVG(weight, bf, 120);
-      window.addEventListener('three-ready',
-        () => this.renderBody3D(containerId, weight, bf), {once: true});
-      return;
-    }
-
-    if (container._three) {
-      container._three.cancelled = true;
-      try { container._three.renderer.dispose(); } catch(e) {}
-      if (container._three.ro) container._three.ro.disconnect();
-      container.innerHTML = '';
-    }
-
-    const THREE = window.THREE;
-    const W = Math.max(220, container.clientWidth || 300);
-    const H = Math.max(340, container.clientHeight || 400);
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(28, W / H, 0.1, 100);
-    camera.position.set(0, 1.1, 3.5);
-    camera.lookAt(0, 0.9, 0);
-
-    const renderer = new THREE.WebGLRenderer({alpha: true, antialias: true});
-    renderer.setPixelRatio(window.devicePixelRatio || 1);
-    renderer.setSize(W, H);
-    container.appendChild(renderer.domElement);
-
-    const body = new THREE.Group();
-    scene.add(body);
-
-    const state = {cancelled: false, renderer, scene, container};
-    container._three = state;
-
-    const fatN = Math.max(0, Math.min(1, (bf - 10) / 25));
-    const leanN = 1 - fatN;
-
-    // Color: lean = cyan, heavier = violet
-    const hue = 0.52 + (1 - leanN) * 0.2;
-    const wireHex = new THREE.Color().setHSL(hue, 0.95, 0.6).getHex();
-
-    const clock = new THREE.Clock();
-    const animate = () => {
-      if (state.cancelled) return;
-      requestAnimationFrame(animate);
-      // Gentle Y sway ± 0.3 rad around the 3/4 rest rotation
-      body.rotation.y = 0.15 + Math.sin(clock.getElapsedTime() * 0.25) * 0.3;
-      renderer.render(scene, camera);
-    };
-    animate();
-
-    const ro = new ResizeObserver(() => {
-      const w = Math.max(220, container.clientWidth);
-      const h = Math.max(340, container.clientHeight);
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    });
-    ro.observe(container);
-    state.ro = ro;
-
-    this.loadHumanModel().then((src) => {
-      if (state.cancelled) return;
-      const clone = src.clone(true);
-
-      // Pose: drop the arms from T-pose.
-      clone.traverse((obj) => {
-        if (!obj.isBone) return;
-        const n = obj.name;
-        if (/LeftArm$/.test(n))          obj.rotation.z = -1.25;
-        else if (/RightArm$/.test(n))    obj.rotation.z =  1.25;
-        else if (/LeftForeArm$/.test(n))  obj.rotation.y = 0.1;
-        else if (/RightForeArm$/.test(n)) obj.rotation.y = -0.1;
-      });
-
-      // Wireframe material — rendered directly on skinned meshes so
-      // bone posing updates per frame via Three.js skinning shader.
-      const wireMat = new THREE.MeshBasicMaterial({
-        color: wireHex, wireframe: true,
-        transparent: true, opacity: 0.9,
-      });
-      let mainMesh = null;
-      clone.traverse((obj) => {
-        if (obj.isMesh || obj.isSkinnedMesh) {
-          obj.material = wireMat;
-          if (!mainMesh) mainMesh = obj;
-        }
-      });
-
-      // Scale uniformly so the BIND-POSE height fits target. Box3
-      // on SkinnedMesh returns the bind-pose AABB (not the posed one),
-      // which is what we want for consistent sizing anyway.
-      clone.updateMatrixWorld(true);
-      const bind = new THREE.Box3().setFromObject(clone);
-      const bSize = bind.getSize(new THREE.Vector3());
-      const targetHeight = 2.2;
-      const scale = bSize.y > 0.01 ? (targetHeight / bSize.y) : 1;
-      clone.scale.setScalar(scale);
-
-      // Re-center the (scaled, still in bind-pose) box at origin
-      clone.updateMatrixWorld(true);
-      const box2 = new THREE.Box3().setFromObject(clone);
-      const center = box2.getCenter(new THREE.Vector3());
-      clone.position.sub(center);
-
-      body.add(clone);
-
-      // Camera: distance enough to fit bind-pose width (T-pose arms)
-      // so even before the pose bakes in we're framed correctly.
-      const armSpan = bSize.x * scale;
-      const fovRad = camera.fov * Math.PI / 180;
-      // Fit whichever is larger — height or arm span
-      const fitDim = Math.max(targetHeight, armSpan * 0.55);
-      const distance = (fitDim / 2) / Math.tan(fovRad / 2) * 1.25;
-      camera.position.set(0, 0, distance);
-      camera.lookAt(0, 0, 0);
-      body.rotation.y = 0.15; // 3/4 view
-    }).catch((err) => {
-      container.innerHTML = this.createBodySVG(weight, bf, 120);
-      console.warn('[prism] human model failed to load:', err.message || err);
-    });
+    // Avoid re-inserting the iframe if it's already there — reloads the model
+    if (container.querySelector('iframe.sketchfab-embed')) return;
+    const src = this.sketchfabEmbedURL();
+    container.innerHTML = `
+      <div class="sf-wrap">
+        <iframe class="sketchfab-embed"
+          title="${this.SKETCHFAB_MODEL_NAME}"
+          src="${src}"
+          frameborder="0"
+          allow="autoplay; fullscreen; xr-spatial-tracking"
+          allowfullscreen
+          mozallowfullscreen="true"
+          webkitallowfullscreen="true"
+          execution-while-out-of-viewport
+          execution-while-not-rendered
+          web-share
+          loading="lazy">
+        </iframe>
+        <a class="sf-credit"
+           href="https://sketchfab.com/3d-models/wireframe-man-${this.SKETCHFAB_MODEL_ID}"
+           target="_blank" rel="noopener">
+           ${this.SKETCHFAB_MODEL_NAME} · ${this.SKETCHFAB_MODEL_AUTHOR} · Sketchfab
+        </a>
+      </div>
+    `;
   },
 
   createBodySVG(weight, bf, _size, tag) {
@@ -1316,7 +1232,7 @@ const APP = {
     const waist = 36 - (this.state.user.startWeight - projW) * 0.12;
     document.getElementById('bm-proj-waist').textContent = waist.toFixed(1) + ' in';
 
-    this.renderBody3D('body-proj', projW, projBF);
+    this.renderSketchfabBody('body-proj', projW, projBF);
   },
 
   renderAll() {
@@ -1339,13 +1255,13 @@ const APP = {
     document.getElementById('bm-cur-bf').textContent = curBF.toFixed(1) + '%';
     document.getElementById('bm-cur-lean').textContent = curLean.toFixed(1) + ' lbs';
     document.getElementById('bm-cur-waist').textContent = curWaist.toFixed(1) + ' in';
-    this.renderBody3D('body-current', curW, curBF);
+    this.renderSketchfabBody('body-current', curW, curBF);
 
     const goalLean = curLean;
     const goalW = goalLean / (1 - this.state.user.goalBF / 100);
     document.getElementById('bm-goal-w').textContent = goalW.toFixed(1) + ' lbs';
     document.getElementById('bm-goal-lean').textContent = goalLean.toFixed(1) + ' lbs';
-    this.renderBody3D('body-goal', goalW, this.state.user.goalBF);
+    this.renderSketchfabBody('body-goal', goalW, this.state.user.goalBF);
 
     // Projected body (default day 30)
     this.updateBodyModel(30);
