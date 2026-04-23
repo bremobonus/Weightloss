@@ -104,11 +104,13 @@ const APP = {
       if (e.key === 'Enter') this.sendChat();
     });
 
-    // Claude natural-language logger
+    // Claude natural-language logger (text + photo)
+    this._pendingImages = [];
     document.getElementById('ai-send').addEventListener('click', () => this.askClaude());
     document.getElementById('ai-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) this.askClaude();
     });
+    document.getElementById('ai-photo').addEventListener('change', (e) => this.attachAIPhoto(e));
 
     // Drawer overlay
     document.getElementById('drawer').addEventListener('click', (e) => {
@@ -1552,12 +1554,58 @@ const APP = {
     document.getElementById('milestones').innerHTML = html;
   },
 
+  async attachAIPhoto(event) {
+    const files = Array.from(event.target.files || []);
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) continue;
+      // Resize in-browser to keep token cost sane (max ~1024 long edge)
+      const dataUrl = await this.resizeImage(file, 1024);
+      this._pendingImages.push({dataUrl, media_type: 'image/jpeg'});
+    }
+    this.renderAIThumbs();
+    event.target.value = '';
+  },
+
+  resizeImage(file, maxEdge) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = url;
+    });
+  },
+
+  renderAIThumbs() {
+    const el = document.getElementById('ai-thumbs');
+    if (!el) return;
+    el.innerHTML = this._pendingImages.map((img, i) =>
+      `<div class="ai-thumb" style="background-image:url('${img.dataUrl}')">
+        <button onclick="APP.removeAIPhoto(${i})">×</button>
+      </div>`
+    ).join('');
+  },
+
+  removeAIPhoto(idx) {
+    this._pendingImages.splice(idx, 1);
+    this.renderAIThumbs();
+  },
+
   async askClaude() {
     const input = document.getElementById('ai-input');
     const response = document.getElementById('ai-response');
     const button = document.getElementById('ai-send');
     const message = input.value.trim();
-    if (!message) return;
+    const images = this._pendingImages || [];
+    if (!message && !images.length) return;
 
     const apiKey = this.state.claudeApiKey;
     if (!apiKey) {
@@ -1609,7 +1657,13 @@ ESTIMATION RULES (use domain knowledge if exact numbers not given):
 - 60min zone 2 cardio ≈ 500 kcal
 - Training load = roughly (avg HR / 100) × minutes × intensity factor
 
-Default date is today unless user specifies otherwise. Return ALL extracted data via the log_day tool. Include a warm, concise 1-2 sentence coach response in the "summary" field.`;
+If PHOTOS are attached, analyze them visually:
+- Meal photos: identify the food, estimate portion size by visual volume, compute kcal + macros, add as a meal entry (single meal if one plate; multiple meals if clearly separate dishes)
+- Workout photos / watch screenshots: read displayed metrics (duration, avg/max HR, calories, training load) and log as a workout
+- Scale photos: read the weight (and BF% if shown)
+- Body photos: estimate visible BF% if asked
+
+Default date is today unless user specifies otherwise. Return ALL extracted data via the log_day tool. Include a warm, concise 1-2 sentence coach response in the "summary" field that notes what you saw in any images.`;
 
       const tools = [{
         name: 'log_day',
@@ -1674,6 +1728,17 @@ Default date is today unless user specifies otherwise. Return ALL extracted data
         }
       }];
 
+      // Build user content — text + any attached images
+      const userContent = [];
+      for (const img of images) {
+        const b64 = img.dataUrl.split(',')[1];
+        userContent.push({
+          type: 'image',
+          source: {type: 'base64', media_type: 'image/jpeg', data: b64},
+        });
+      }
+      userContent.push({type: 'text', text: message || 'Log what you see in the image(s).'});
+
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -1688,7 +1753,7 @@ Default date is today unless user specifies otherwise. Return ALL extracted data
           system: [{type: 'text', text: systemPrompt, cache_control: {type: 'ephemeral'}}],
           tools,
           tool_choice: {type: 'tool', name: 'log_day'},
-          messages: [{role: 'user', content: message}],
+          messages: [{role: 'user', content: userContent}],
         }),
       });
 
@@ -1717,6 +1782,8 @@ Default date is today unless user specifies otherwise. Return ALL extracted data
         <div style="color:var(--ink-dim)">${this.escapeHtml(parsed.summary)}</div>
       `;
       input.value = '';
+      this._pendingImages = [];
+      this.renderAIThumbs();
     } catch (e) {
       response.className = 'ai-response show';
       response.innerHTML = `⚠ ${this.escapeHtml(e.message)}`;

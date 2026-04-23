@@ -33,7 +33,7 @@
   <div class="brand">
     <div class="mark" aria-hidden="true"></div>
     <div class="brand-text">
-      <div class="brand-title">PRISM <span style="font-size:9px;color:#ffd400;letter-spacing:.1em">v0.7</span></div>
+      <div class="brand-title">PRISM <span style="font-size:9px;color:#ffd400;letter-spacing:.1em">v0.8</span></div>
       <div class="brand-sub">weight-loss command center</div>
     </div>
   </div>
@@ -135,10 +135,17 @@
       <div class="card span-3 ai-card">
         <div class="card-title row"><span>Tell Claude about your day</span><span class="muted mono" id="ai-status">powered by claude sonnet 4.6</span></div>
         <div class="ai-input-row">
-          <textarea id="ai-input" rows="2" placeholder="e.g. 'weighed 221.5 this morning, ran 30 min at avg HR 145, had grilled chicken + rice for dinner, slept 7.5 hours'"></textarea>
-          <button class="btn" id="ai-send">Log with Claude</button>
+          <textarea id="ai-input" rows="2" placeholder="Type what you ate or did — or snap a photo of your plate. e.g. 'weighed 221 this morning, ran 30 min at HR 145'"></textarea>
+          <div class="ai-actions">
+            <label class="btn ghost ai-photo" title="Attach photo of your meal/workout">
+              <input type="file" id="ai-photo" accept="image/*" capture="environment" hidden />
+              📷
+            </label>
+            <button class="btn" id="ai-send">Log with Claude</button>
+          </div>
         </div>
-        <div class="ai-hint muted small">Claude parses what you say into structured data. No typing into fields.</div>
+        <div class="ai-thumbs" id="ai-thumbs"></div>
+        <div class="ai-hint muted small">Claude parses text + analyses photos. No form fields.</div>
         <div class="ai-response" id="ai-response"></div>
       </div>
 

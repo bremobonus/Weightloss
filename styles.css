@@ -282,7 +282,20 @@ main{padding:18px 16px 120px 16px; max-width:1400px; margin:0 auto}
   border-color: rgba(192,77,255,.7);
   box-shadow: 0 0 0 3px rgba(192,77,255,.15);
 }
-.ai-input-row .btn{min-width: 140px; align-self: stretch; height: auto}
+.ai-actions{display:flex; flex-direction:column; gap:6px; min-width: 140px}
+.ai-actions .btn{align-self: stretch}
+.ai-photo{cursor:pointer; padding: 8px; text-align:center; font-size:20px}
+.ai-thumbs{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px}
+.ai-thumb{
+  position:relative; width:72px; height:72px; border-radius:10px;
+  background-size:cover; background-position:center;
+  border:1px solid var(--line-2); overflow:hidden;
+}
+.ai-thumb button{
+  position:absolute; top:-4px; right:-4px; width:22px; height:22px;
+  border-radius:50%; background:#ff2d6f; color:#fff; border:none;
+  cursor:pointer; font-size:14px; line-height:1;
+}
 .ai-hint{margin-top:6px}
 .ai-response{
   margin-top:10px; padding:10px 12px;
