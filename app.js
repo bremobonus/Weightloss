@@ -113,13 +113,14 @@ const APP = {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
     document.getElementById(`view-${tabName}`).classList.add('active');
-    // Init charts if needed
+    // Init charts / visuals if needed
     setTimeout(() => {
       if (tabName === 'weight') this.initWeightCharts();
       if (tabName === 'exercise') this.initExerciseCharts();
       if (tabName === 'diet') this.initDietCharts();
       if (tabName === 'metrics') this.initMetricsCharts();
       if (tabName === 'plan') this.initPlanChart();
+      if (tabName === 'body') this.renderMorphStrip();
     }, 50);
   },
 
@@ -693,35 +694,77 @@ const APP = {
     });
 
     const ctxBF = document.getElementById('chart-bf');
-    if (ctxBF && this.state.logs[Object.keys(this.state.logs)[0]]?.bf) {
+    if (ctxBF) {
       if (this.charts.bf) this.charts.bf.destroy();
+      // Inject a goal line of 15% BF
       this.charts.bf = new Chart(ctxBF, {
         type: 'line',
         data: {
           labels: data.labels,
+          datasets: [
+            {
+              label: 'Body fat %',
+              data: data.bfs.map(x => x ?? null),
+              borderColor: '#00d4ff',
+              backgroundColor: 'rgba(0, 212, 255, 0.15)',
+              fill: true,
+              tension: 0.35,
+              spanGaps: true,
+              pointRadius: 3,
+              pointBackgroundColor: '#00d4ff',
+            },
+            {
+              label: 'Goal',
+              data: data.labels.map(() => this.state.user.goalBF),
+              borderColor: 'rgba(51,255,153,.6)',
+              borderDash: [4,4],
+              pointRadius: 0,
+            },
+          ],
+        },
+        options: this.chartOpts(true),
+      });
+    }
+
+    // Waist chart
+    const ctxW = document.getElementById('chart-waist');
+    if (ctxW) {
+      if (this.charts.waist) this.charts.waist.destroy();
+      const waists = Object.keys(this.state.logs).sort()
+        .map(k => ({label: k.slice(5), v: this.state.logs[k].waist}))
+        .filter(x => x.v);
+      this.charts.waist = new Chart(ctxW, {
+        type: 'line',
+        data: {
+          labels: waists.length ? waists.map(x => x.label) : ['—'],
           datasets: [{
-            label: 'Body Fat %',
-            data: data.bfs,
-            borderColor: '#00d4ff',
-            backgroundColor: 'rgba(0, 212, 255, 0.15)',
+            label: 'Waist (in)',
+            data: waists.length ? waists.map(x => x.v) : [42],
+            borderColor: '#ffd400',
+            backgroundColor: 'rgba(255, 212, 0, 0.15)',
             fill: true,
             tension: 0.35,
             pointRadius: 3,
-            pointBackgroundColor: '#00d4ff',
           }],
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          resizeDelay: 100,
-          animation: {duration: 400},
-          plugins: {legend: {display: false}},
-          scales: {
-            y: {min: 10, max: 35, ticks: {color: '#8c83b8'}, grid: {color: 'rgba(255,255,255,.05)'}},
-            x: {ticks: {color: '#8c83b8'}, grid: {color: 'rgba(255,255,255,.05)'}},
-          },
-        },
+        options: this.chartOpts(),
       });
+    }
+
+    // Weight history table
+    const tbody = document.querySelector('#tbl-weights tbody');
+    if (tbody) {
+      const keys = Object.keys(this.state.logs).filter(k => this.state.logs[k].weight).sort().reverse();
+      const rows = keys.map((k, i) => {
+        const l = this.state.logs[k];
+        const prev = keys[i+1] ? this.state.logs[keys[i+1]].weight : null;
+        const wk = keys[i+7] ? this.state.logs[keys[i+7]].weight : null;
+        const d1 = prev ? (l.weight - prev).toFixed(1) : '—';
+        const d7 = wk ? (l.weight - wk).toFixed(1) : '—';
+        const lean = l.bf ? (l.weight * (1 - l.bf/100)).toFixed(1) : '—';
+        return `<tr><td>${k}</td><td>${l.weight.toFixed(1)}</td><td>${d1}</td><td>${d7}</td><td>${l.bf ? l.bf.toFixed(1)+'%' : '—'}</td><td>${lean}</td><td>${l.waist ? l.waist.toFixed(1) : '—'}</td></tr>`;
+      });
+      tbody.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="7" style="text-align:center;color:var(--ink-mute)">No weigh-ins yet. Log your first via Daily Log tab.</td></tr>';
     }
   },
 
@@ -753,47 +796,310 @@ const APP = {
   },
 
   initExerciseCharts() {
-    // Load on demand
+    const ctx = document.getElementById('chart-load');
+    if (!ctx) return;
+    if (this.charts.load) this.charts.load.destroy();
+    const {labels, load} = this.getLoadData(60);
+    this.charts.load = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Training load',
+          data: load,
+          backgroundColor: load.map((_,i) => `hsl(${(i*8)%360}, 80%, 60%)`),
+          borderRadius: 4,
+        }],
+      },
+      options: this.chartOpts(),
+    });
+    this.renderZones();
+  },
+
+  getLoadData(days) {
+    const labels = [], load = [];
+    const start = new Date(this.state.planStart);
+    for (let i = 0; i <= days; i++) {
+      const d = new Date(start); d.setDate(d.getDate() + i);
+      const key = d.toISOString().split('T')[0];
+      const ws = this.state.workouts[key] || [];
+      labels.push(d.toLocaleDateString('en-US', {month:'short', day:'numeric'}));
+      load.push(ws.reduce((s,w) => s + (w.load || w.mins || 0), 0));
+    }
+    return {labels, load};
+  },
+
+  renderZones() {
+    const zones = [0,0,0,0,0]; // Z1–Z5
+    Object.values(this.state.workouts).flat().forEach(w => {
+      const hr = w.avghr || 0;
+      const maxHr = 220 - this.state.user.age;
+      const pct = hr / maxHr;
+      let z = 0;
+      if (pct < 0.6) z = 0;
+      else if (pct < 0.7) z = 1;
+      else if (pct < 0.8) z = 2;
+      else if (pct < 0.9) z = 3;
+      else z = 4;
+      zones[z] += (w.mins || 0);
+    });
+    const total = Math.max(1, zones.reduce((a,b)=>a+b,0));
+    const el = document.getElementById('zones');
+    if (el) {
+      el.innerHTML = ['Z1','Z2','Z3','Z4','Z5'].map((n, i) => `
+        <div class="zone">
+          <span class="l">${n}</span>
+          <div class="bar"><div class="bar-fill z${i+1}" style="width:${(zones[i]/total)*100}%"></div></div>
+          <span class="v">${zones[i]}m</span>
+        </div>
+      `).join('');
+    }
+    const tbody = document.querySelector('#tbl-workouts tbody');
+    if (tbody) {
+      const rows = [];
+      Object.keys(this.state.workouts).sort().reverse().forEach(date => {
+        this.state.workouts[date].forEach(w => {
+          rows.push(`<tr><td>${date}</td><td>${w.type}</td><td>${w.mins}</td><td>${w.avghr||'-'}</td><td>${w.maxhr||'-'}</td><td>${w.kcal||'-'}</td><td>${w.load||'-'}</td><td>${w.notes||''}</td></tr>`);
+        });
+      });
+      tbody.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="8" style="text-align:center;color:var(--ink-mute)">No workouts logged yet.</td></tr>';
+    }
   },
 
   initDietCharts() {
-    // Load on demand
+    const ctx = document.getElementById('chart-cals');
+    if (!ctx) return;
+    if (this.charts.cals) this.charts.cals.destroy();
+    const {labels, ins, outs} = this.getCalData(14);
+    this.charts.cals = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {label:'In', data: ins, backgroundColor:'rgba(255,122,26,.8)', borderRadius:4},
+          {label:'Out', data: outs.map(x => -x), backgroundColor:'rgba(0,212,255,.8)', borderRadius:4},
+        ],
+      },
+      options: {...this.chartOpts(true), scales: {...this.chartOpts().scales, x:{...this.chartOpts().scales.x, stacked:true}, y:{...this.chartOpts().scales.y, stacked:true}}},
+    });
+
+    // Macros chart
+    const mx = document.getElementById('chart-macros');
+    if (mx) {
+      if (this.charts.macrosChart) this.charts.macrosChart.destroy();
+      const md = this.getMacroData(14);
+      this.charts.macrosChart = new Chart(mx, {
+        type: 'line',
+        data: {labels: md.labels, datasets: [
+          {label:'P', data: md.p, borderColor:'#ff2d6f', tension:.35, fill:false},
+          {label:'C', data: md.c, borderColor:'#ffd400', tension:.35, fill:false},
+          {label:'F', data: md.f, borderColor:'#00d4ff', tension:.35, fill:false},
+        ]},
+        options: this.chartOpts(true),
+      });
+    }
+
+    // Fasting grid
+    const fg = document.getElementById('fast-grid');
+    if (fg) {
+      const html = [];
+      for (let i = 13; i >= 0; i--) {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        const key = d.toISOString().split('T')[0];
+        const meals = this.state.meals[key] || [];
+        const ok = meals.length === 0 || !meals.some(m => {
+          const [h] = (m.time||'00:00').split(':').map(Number);
+          return h < 14;
+        });
+        html.push(`<div class="f ${ok && (meals.length > 0 || i === 0) ? 'ok' : i < 7 && meals.length === 0 ? '' : 'miss'}" title="${key}"></div>`);
+      }
+      fg.innerHTML = html.join('');
+    }
+
+    // Meal table
+    const tbody = document.querySelector('#tbl-meals tbody');
+    if (tbody) {
+      const rows = [];
+      Object.keys(this.state.meals).sort().reverse().forEach(date => {
+        this.state.meals[date].forEach(m => {
+          rows.push(`<tr><td>${date}</td><td>${m.slot||'-'}</td><td>${m.name}</td><td>${m.kcal}</td><td>${m.p||0}</td><td>${m.c||0}</td><td>${m.f||0}</td></tr>`);
+        });
+      });
+      tbody.innerHTML = rows.length ? rows.join('') : '<tr><td colspan="7" style="text-align:center;color:var(--ink-mute)">No meals logged yet.</td></tr>';
+    }
+
+    const avgEl = document.getElementById('diet-avg');
+    if (avgEl) {
+      const total = ins.reduce((a,b)=>a+b,0);
+      const avg = total / Math.max(1, ins.filter(x=>x>0).length || 14);
+      avgEl.textContent = `avg ${Math.round(avg)} kcal/day`;
+    }
+    const targetEl = document.getElementById('diet-targets');
+    if (targetEl) {
+      const tdee = this.estimateTDEE();
+      targetEl.textContent = `TDEE ~${tdee} · deficit ${tdee - 1900} kcal`;
+    }
+  },
+
+  getCalData(days) {
+    const labels = [], ins = [], outs = [];
+    const today = new Date();
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today); d.setDate(d.getDate() - i);
+      const key = d.toISOString().split('T')[0];
+      const meals = this.state.meals[key] || [];
+      const workouts = this.state.workouts[key] || [];
+      labels.push(d.toLocaleDateString('en-US', {month:'short', day:'numeric'}));
+      ins.push(meals.reduce((s,m)=>s+(m.kcal||0),0));
+      outs.push(workouts.reduce((s,w)=>s+(w.kcal||0),0) + (this.estimateTDEE() - 2000));
+    }
+    return {labels, ins, outs};
+  },
+
+  getMacroData(days) {
+    const labels=[], p=[], c=[], f=[];
+    const today = new Date();
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today); d.setDate(d.getDate() - i);
+      const key = d.toISOString().split('T')[0];
+      const meals = this.state.meals[key] || [];
+      labels.push(d.toLocaleDateString('en-US', {month:'short', day:'numeric'}));
+      p.push(meals.reduce((s,m)=>s+(m.p||0),0));
+      c.push(meals.reduce((s,m)=>s+(m.c||0),0));
+      f.push(meals.reduce((s,m)=>s+(m.f||0),0));
+    }
+    return {labels, p, c, f};
   },
 
   initMetricsCharts() {
-    // Load on demand
+    const metrics = [
+      {id:'chart-rhr', field:'rhr', color:'#ff2d6f'},
+      {id:'chart-hrv', field:'hrv', color:'#00d4ff'},
+      {id:'chart-sleep', field:'sleep', color:'#6a5dff'},
+      {id:'chart-steps', field:'steps', color:'#33ff99'},
+      {id:'chart-vo2', field:'vo2', color:'#ffd400'},
+    ];
+    metrics.forEach(m => {
+      const ctx = document.getElementById(m.id);
+      if (!ctx) return;
+      if (this.charts[m.id]) this.charts[m.id].destroy();
+      const d = this.getMetricData(m.field, 30);
+      this.charts[m.id] = new Chart(ctx, {
+        type: 'line',
+        data: {labels: d.labels, datasets: [{
+          label: m.field, data: d.values, borderColor: m.color,
+          backgroundColor: m.color + '33', fill: true, tension: .35, pointRadius: 2, spanGaps: true,
+        }]},
+        options: this.chartOpts(),
+      });
+    });
+    // Stress vs body battery (dual axis)
+    const sx = document.getElementById('chart-stress');
+    if (sx) {
+      if (this.charts.stress) this.charts.stress.destroy();
+      const ds = this.getMetricData('stress', 30);
+      const dbb = this.getMetricData('bb', 30);
+      this.charts.stress = new Chart(sx, {
+        type: 'line',
+        data: {labels: ds.labels, datasets: [
+          {label:'Stress', data: ds.values, borderColor:'#ff7a1a', tension:.35, spanGaps:true},
+          {label:'Body Battery', data: dbb.values, borderColor:'#33ff99', tension:.35, spanGaps:true},
+        ]},
+        options: this.chartOpts(true),
+      });
+    }
+  },
+
+  getMetricData(field, days) {
+    const labels=[], values=[];
+    const today = new Date();
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today); d.setDate(d.getDate() - i);
+      const key = d.toISOString().split('T')[0];
+      const log = this.state.logs[key];
+      labels.push(d.toLocaleDateString('en-US', {month:'short', day:'numeric'}));
+      values.push(log?.[field] || null);
+    }
+    return {labels, values};
+  },
+
+  chartOpts(showLegend) {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      resizeDelay: 100,
+      animation: {duration: 400},
+      plugins: {legend: {display: !!showLegend, labels:{color:'#c9bff0', boxWidth:12, font:{size:11}}}},
+      scales: {
+        y: {ticks:{color:'#8c83b8'}, grid:{color:'rgba(255,255,255,.05)'}},
+        x: {ticks:{color:'#8c83b8', maxTicksLimit: 8}, grid:{color:'rgba(255,255,255,.05)'}},
+      },
+    };
   },
 
   initPlanChart() {
     const ctx = document.getElementById('chart-plan');
-    if (!ctx || this.charts.plan) return;
+    if (!ctx) return;
+    if (this.charts.plan) this.charts.plan.destroy();
     const proj = this.getProjection(180);
+    const actuals = proj.labels.map((_, i) => {
+      const d = new Date(this.state.planStart);
+      d.setDate(d.getDate() + i);
+      const key = d.toISOString().split('T')[0];
+      return this.state.logs[key]?.weight || null;
+    });
     this.charts.plan = new Chart(ctx, {
       type: 'line',
       data: {
         labels: proj.labels,
-        datasets: [{
-          label: 'Projected weight',
-          data: proj.weights,
-          borderColor: '#ff7a1a',
-          backgroundColor: 'rgba(255, 122, 26, 0.1)',
-          fill: true,
-          tension: 0.4,
-          pointRadius: 2,
-        }],
+        datasets: [
+          {label:'Projected', data: proj.weights, borderColor:'#ff7a1a', backgroundColor:'rgba(255,122,26,.1)', fill:true, tension:.4, pointRadius:0, borderDash:[6,4]},
+          {label:'Actual', data: actuals, borderColor:'#ff2d6f', backgroundColor:'rgba(255,45,111,.15)', tension:.35, pointRadius:3, spanGaps:true},
+        ],
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        resizeDelay: 100,
-        animation: {duration: 400},
-        plugins: {legend: {display: false}},
-        scales: {
-          y: {ticks: {color: '#8c83b8'}, grid: {color: 'rgba(255,255,255,.05)'}},
-          x: {ticks: {color: '#8c83b8'}, grid: {color: 'rgba(255,255,255,.05)'}},
-        },
-      },
+      options: this.chartOpts(true),
     });
+
+    const sum = document.getElementById('plan-summary');
+    if (sum) {
+      const final = proj.weights[proj.weights.length - 1];
+      const start = this.state.user.startWeight;
+      const days = Math.ceil((start - final) / 0.5);
+      sum.textContent = `${start.toFixed(0)} → ${final.toFixed(0)} lbs · ETA ~${days}d`;
+    }
+
+    // Calendar
+    const cal = document.getElementById('cal');
+    if (cal) {
+      const html = [];
+      const today = new Date().toISOString().split('T')[0];
+      for (let i = 0; i < this.state.planDays; i++) {
+        const d = new Date(this.state.planStart);
+        d.setDate(d.getDate() + i);
+        const key = d.toISOString().split('T')[0];
+        const log = this.state.logs[key];
+        const isToday = key === today;
+        html.push(`<div class="d ${log?.weight ? 'done' : ''} ${isToday ? 'today' : ''}" title="${key}">${i+1}<small>${log?.weight ? log.weight.toFixed(0) : ''}</small></div>`);
+      }
+      cal.innerHTML = html.join('');
+    }
+  },
+
+  renderMorphStrip() {
+    const strip = document.getElementById('morph-strip');
+    if (!strip) return;
+    const steps = [0, 10, 20, 30, 45, 60, 120];
+    const proj = this.getProjection(180);
+    const startBF = this.state.user.startBF;
+    const goalBF = this.state.user.goalBF;
+    strip.innerHTML = steps.map(day => {
+      const idx = Math.min(proj.weights.length - 1, day);
+      const w = proj.weights[idx];
+      // Interpolate BF linearly toward goal
+      const total = Math.max(1, (this.state.user.startWeight - proj.weights[proj.weights.length-1]) / 0.5);
+      const bf = startBF - (startBF - goalBF) * Math.min(1, day / total);
+      return `<div class="slot"><div style="flex:1;display:flex;align-items:center;justify-content:center;max-height:160px">${this.createBodySVG(w, bf, 80, 'm'+day)}</div><small>DAY ${day}</small><b>${w.toFixed(0)}lb · ${bf.toFixed(0)}%</b></div>`;
+    }).join('');
   },
 
   getProjection(days) {
