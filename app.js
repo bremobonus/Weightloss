@@ -317,20 +317,166 @@ const APP = {
     document.getElementById('body-hero').innerHTML = svg;
   },
 
-  createBodySVG(weight, bf, size) {
-    const scale = 1 - bf / 100;
-    const width = 120, height = 140;
-    return `<svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 8px 20px rgba(192,77,255,.3))">
+  createBodySVG(weight, bf, _size, tag) {
+    // Anatomical male figure (186cm / 6'1"). BF% drives waist + limb thickness.
+    // weight drives overall scale slightly. Returns a rich SVG with
+    // gradient lighting for a 3D feel.
+    const uid = tag || ('b' + Math.random().toString(36).slice(2, 8));
+    const W = 260, H = 560;
+    const cx = W / 2;
+
+    // Normalize BF to 0..1 for fat factor (10% lean -> 35% obese)
+    const fatN = Math.max(0, Math.min(1, (bf - 10) / 25));
+    // Normalize weight to influence overall scale (±4%)
+    const wN = Math.max(0, Math.min(1, (weight - 160) / 100));
+    const scale = 1 + (wN - 0.5) * 0.08;
+
+    // Widths
+    const neckW = 34;
+    const shoulderW = 150;
+    const chestW = 120 + fatN * 30;
+    const waistW = 78 + fatN * 70;  // belly grows most
+    const hipW = 110 + fatN * 30;
+    const thighW = 48 + fatN * 18;
+    const calfW = 36 + fatN * 10;
+    const armUpW = 30 + fatN * 14;
+    const armLoW = 24 + fatN * 10;
+
+    // Vertical anchors
+    const headR = 40;
+    const headY = 60;
+    const neckY = 100;
+    const shoulderY = 140;
+    const chestY = 200;
+    const waistY = 280;
+    const hipY = 340;
+    const kneeY = 450;
+    const ankleY = 540;
+
+    // Muscle definition visible only at low BF
+    const defAlpha = (1 - fatN) * 0.5;
+
+    const half = (w) => w / 2;
+
+    // Torso path: smooth bezier curves from shoulders -> chest -> waist -> hips
+    const torso = `
+      M ${cx - half(shoulderW)} ${shoulderY}
+      C ${cx - half(chestW) - 6} ${chestY - 20}, ${cx - half(chestW)} ${chestY}, ${cx - half(chestW)} ${chestY + 20}
+      C ${cx - half(waistW) - 8} ${waistY - 30}, ${cx - half(waistW)} ${waistY}, ${cx - half(waistW)} ${waistY + 6}
+      C ${cx - half(hipW) - 4} ${hipY - 20}, ${cx - half(hipW)} ${hipY}, ${cx - half(hipW)} ${hipY + 6}
+      L ${cx + half(hipW)} ${hipY + 6}
+      C ${cx + half(hipW)} ${hipY}, ${cx + half(hipW) + 4} ${hipY - 20}, ${cx + half(waistW)} ${waistY + 6}
+      C ${cx + half(waistW)} ${waistY}, ${cx + half(waistW) + 8} ${waistY - 30}, ${cx + half(chestW)} ${chestY + 20}
+      C ${cx + half(chestW)} ${chestY}, ${cx + half(chestW) + 6} ${chestY - 20}, ${cx + half(shoulderW)} ${shoulderY}
+      Z`;
+
+    // Arm paths (left & right)
+    const armL = `
+      M ${cx - half(shoulderW)} ${shoulderY}
+      C ${cx - half(shoulderW) - 16} ${chestY}, ${cx - half(shoulderW) - 12} ${waistY - 20}, ${cx - half(shoulderW) - 18} ${waistY + 10}
+      C ${cx - half(shoulderW) - 22} ${hipY + 10}, ${cx - half(shoulderW) - 14} ${hipY + 30}, ${cx - half(shoulderW) - 6} ${hipY + 20}
+      L ${cx - half(shoulderW) + armUpW - 6} ${hipY + 10}
+      C ${cx - half(shoulderW) + armUpW - 10} ${waistY + 10}, ${cx - half(shoulderW) + armUpW - 4} ${chestY}, ${cx - half(shoulderW) + 2} ${shoulderY + 8}
+      Z`;
+    const armR = `
+      M ${cx + half(shoulderW)} ${shoulderY}
+      C ${cx + half(shoulderW) + 16} ${chestY}, ${cx + half(shoulderW) + 12} ${waistY - 20}, ${cx + half(shoulderW) + 18} ${waistY + 10}
+      C ${cx + half(shoulderW) + 22} ${hipY + 10}, ${cx + half(shoulderW) + 14} ${hipY + 30}, ${cx + half(shoulderW) + 6} ${hipY + 20}
+      L ${cx + half(shoulderW) - armUpW + 6} ${hipY + 10}
+      C ${cx + half(shoulderW) - armUpW + 10} ${waistY + 10}, ${cx + half(shoulderW) - armUpW + 4} ${chestY}, ${cx + half(shoulderW) - 2} ${shoulderY + 8}
+      Z`;
+
+    // Legs
+    const legGap = 6;
+    const legL = `
+      M ${cx - legGap - thighW} ${hipY + 4}
+      C ${cx - legGap - thighW - 4} ${kneeY - 20}, ${cx - legGap - calfW - 4} ${kneeY + 10}, ${cx - legGap - calfW} ${ankleY}
+      L ${cx - legGap} ${ankleY}
+      C ${cx - legGap} ${kneeY + 10}, ${cx - legGap} ${kneeY - 20}, ${cx - legGap} ${hipY + 4}
+      Z`;
+    const legR = `
+      M ${cx + legGap + thighW} ${hipY + 4}
+      C ${cx + legGap + thighW + 4} ${kneeY - 20}, ${cx + legGap + calfW + 4} ${kneeY + 10}, ${cx + legGap + calfW} ${ankleY}
+      L ${cx + legGap} ${ankleY}
+      C ${cx + legGap} ${kneeY + 10}, ${cx + legGap} ${kneeY - 20}, ${cx + legGap} ${hipY + 4}
+      Z`;
+
+    // Color: lean = cool cyan/violet, obese = warm magenta/orange
+    const hueA = fatN < 0.5
+      ? `hsl(${260 - fatN * 60}, 80%, 60%)`
+      : `hsl(${320 - (fatN - 0.5) * 40}, 85%, 58%)`;
+    const hueB = fatN < 0.5
+      ? `hsl(${200 - fatN * 30}, 90%, 60%)`
+      : `hsl(${20 + (fatN - 0.5) * 40}, 85%, 55%)`;
+
+    return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%;display:block;filter: drop-shadow(0 16px 32px rgba(192,77,255,.25))">
       <defs>
-        <linearGradient id="body-grad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="rgba(192,77,255,.9)"/>
-          <stop offset="100%" stop-color="rgba(0,212,255,.8)"/>
+        <linearGradient id="skin-${uid}" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="${hueA}"/>
+          <stop offset="50%" stop-color="${hueB}"/>
+          <stop offset="100%" stop-color="${hueA}"/>
         </linearGradient>
+        <linearGradient id="hi-${uid}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="rgba(255,255,255,.45)"/>
+          <stop offset="40%" stop-color="rgba(255,255,255,.12)"/>
+          <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+        </linearGradient>
+        <radialGradient id="shadow-${uid}" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="60%" stop-color="rgba(0,0,0,0)"/>
+          <stop offset="100%" stop-color="rgba(0,0,0,.5)"/>
+        </radialGradient>
+        <filter id="glow-${uid}" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="3"/>
+        </filter>
       </defs>
-      <ellipse cx="${width/2}" cy="28" rx="${12*scale}" ry="14" fill="url(#body-grad)" opacity="0.9"/>
-      <path d="M ${width/2-8} 42 L ${width/2-16*scale} 80 L ${width/2-6} 135 L ${width/2+6} 135 L ${width/2+16*scale} 80 L ${width/2+8} 42 Z" fill="url(#body-grad)" opacity="0.85"/>
-      <circle cx="${width/2-14*scale}" cy="55" r="6" fill="rgba(255,212,0,.6)"/>
-      <circle cx="${width/2+14*scale}" cy="55" r="6" fill="rgba(255,212,0,.6)"/>
+
+      <g transform="translate(${cx},${H/2}) scale(${scale}) translate(${-cx},${-H/2})">
+        <!-- Ground shadow -->
+        <ellipse cx="${cx}" cy="${ankleY + 10}" rx="${70 + fatN * 20}" ry="8" fill="rgba(0,0,0,.35)" filter="url(#glow-${uid})"/>
+
+        <!-- Legs -->
+        <path d="${legL}" fill="url(#skin-${uid})"/>
+        <path d="${legR}" fill="url(#skin-${uid})"/>
+        <!-- Leg inner shadow -->
+        <path d="${legL}" fill="url(#shadow-${uid})" opacity="0.5"/>
+        <path d="${legR}" fill="url(#shadow-${uid})" opacity="0.5"/>
+
+        <!-- Arms (behind torso) -->
+        <path d="${armL}" fill="url(#skin-${uid})"/>
+        <path d="${armR}" fill="url(#skin-${uid})"/>
+        <path d="${armL}" fill="url(#shadow-${uid})" opacity="0.4"/>
+        <path d="${armR}" fill="url(#shadow-${uid})" opacity="0.4"/>
+
+        <!-- Torso -->
+        <path d="${torso}" fill="url(#skin-${uid})"/>
+
+        <!-- Muscle definition (low BF only) -->
+        ${defAlpha > 0.05 ? `
+          <!-- Pec line -->
+          <path d="M ${cx - 20} ${chestY + 20} Q ${cx} ${chestY + 30}, ${cx + 20} ${chestY + 20}" stroke="rgba(0,0,0,${defAlpha * 0.6})" stroke-width="1.5" fill="none"/>
+          <!-- Abs center -->
+          <line x1="${cx}" y1="${chestY + 30}" x2="${cx}" y2="${waistY + 10}" stroke="rgba(0,0,0,${defAlpha * 0.5})" stroke-width="1.5"/>
+          <!-- Ab lines -->
+          ${[0, 1, 2].map(i => `<line x1="${cx - 15}" y1="${chestY + 50 + i * 22}" x2="${cx + 15}" y2="${chestY + 50 + i * 22}" stroke="rgba(0,0,0,${defAlpha * 0.5})" stroke-width="1"/>`).join('')}
+        ` : ''}
+
+        <!-- Belly shadow (high BF only) -->
+        ${fatN > 0.3 ? `
+          <ellipse cx="${cx}" cy="${waistY + 10}" rx="${half(waistW) - 10}" ry="${20 + fatN * 15}"
+            fill="url(#shadow-${uid})" opacity="${fatN * 0.35}"/>
+        ` : ''}
+
+        <!-- Torso highlight (3D) -->
+        <path d="${torso}" fill="url(#hi-${uid})" opacity="0.7"/>
+
+        <!-- Neck -->
+        <rect x="${cx - neckW/2}" y="${neckY}" width="${neckW}" height="${shoulderY - neckY + 4}" fill="url(#skin-${uid})" rx="8"/>
+
+        <!-- Head -->
+        <circle cx="${cx}" cy="${headY + 4}" r="${headR}" fill="url(#skin-${uid})"/>
+        <!-- Head highlight -->
+        <ellipse cx="${cx - 10}" cy="${headY - 6}" rx="14" ry="10" fill="rgba(255,255,255,.35)"/>
+      </g>
     </svg>`;
   },
 
@@ -535,6 +681,8 @@ const APP = {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        resizeDelay: 100,
+        animation: {duration: 400},
         plugins: {legend: {display: true, position: 'top', labels: {color: '#c9bff0', boxWidth: 12}}},
         scales: {
           y: {ticks: {color: '#8c83b8'}, grid: {color: 'rgba(255,255,255,.05)'}},
@@ -565,6 +713,8 @@ const APP = {
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          resizeDelay: 100,
+          animation: {duration: 400},
           plugins: {legend: {display: false}},
           scales: {
             y: {min: 10, max: 35, ticks: {color: '#8c83b8'}, grid: {color: 'rgba(255,255,255,.05)'}},
@@ -635,6 +785,8 @@ const APP = {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        resizeDelay: 100,
+        animation: {duration: 400},
         plugins: {legend: {display: false}},
         scales: {
           y: {ticks: {color: '#8c83b8'}, grid: {color: 'rgba(255,255,255,.05)'}},
@@ -784,6 +936,8 @@ const APP = {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        resizeDelay: 100,
+        animation: {duration: 400},
         plugins: {legend: {display: true, position: 'top', labels: {color: '#c9bff0', boxWidth: 12, font: {size: 11}}}},
         scales: {
           y: {ticks: {color: '#8c83b8'}, grid: {color: 'rgba(255,255,255,.05)'}},

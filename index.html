@@ -81,7 +81,7 @@
 
       <div class="card span-2">
         <div class="card-title row"><span>Weight trajectory</span><span class="muted mono" id="proj-label">—</span></div>
-        <canvas id="chart-weight" height="140"></canvas>
+        <div class="chart-wrap"><canvas id="chart-weight" height="140"></canvas></div>
       </div>
 
       <div class="card">
@@ -203,15 +203,15 @@
     <div class="grid">
       <div class="card span-3">
         <div class="card-title row"><span>Weight & body composition</span><span class="muted mono" id="w-range">last 60 days</span></div>
-        <canvas id="chart-weight-lg" height="120"></canvas>
+        <div class="chart-wrap"><canvas id="chart-weight-lg" height="120"></canvas></div>
       </div>
       <div class="card span-2">
         <div class="card-title">Body fat % vs goal</div>
-        <canvas id="chart-bf" height="140"></canvas>
+        <div class="chart-wrap"><canvas id="chart-bf" height="140"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Waist</div>
-        <canvas id="chart-waist" height="140"></canvas>
+        <div class="chart-wrap"><canvas id="chart-waist" height="140"></canvas></div>
       </div>
       <div class="card span-3">
         <div class="card-title">Weigh-in history</div>
@@ -225,7 +225,7 @@
     <div class="grid">
       <div class="card span-2">
         <div class="card-title">Weekly training load</div>
-        <canvas id="chart-load" height="140"></canvas>
+        <div class="chart-wrap"><canvas id="chart-load" height="140"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">HR zones this week</div>
@@ -243,7 +243,7 @@
     <div class="grid">
       <div class="card span-2">
         <div class="card-title row"><span>Calories · last 14 days</span><span class="muted mono" id="diet-avg">—</span></div>
-        <canvas id="chart-cals" height="140"></canvas>
+        <div class="chart-wrap"><canvas id="chart-cals" height="140"></canvas></div>
       </div>
       <div class="card">
         <div class="card-title">Fasting compliance</div>
@@ -251,7 +251,7 @@
       </div>
       <div class="card span-3">
         <div class="card-title row"><span>Macro targets</span><span class="muted small" id="diet-targets"></span></div>
-        <canvas id="chart-macros" height="120"></canvas>
+        <div class="chart-wrap"><canvas id="chart-macros" height="120"></canvas></div>
       </div>
       <div class="card span-3">
         <div class="card-title">Meal history</div>
@@ -263,12 +263,12 @@
   <!-- =================== METRICS =================== -->
   <section class="view" id="view-metrics">
     <div class="grid">
-      <div class="card"><div class="card-title">Resting HR</div><canvas id="chart-rhr" height="120"></canvas></div>
-      <div class="card"><div class="card-title">HRV</div><canvas id="chart-hrv" height="120"></canvas></div>
-      <div class="card"><div class="card-title">Sleep</div><canvas id="chart-sleep" height="120"></canvas></div>
-      <div class="card"><div class="card-title">Steps</div><canvas id="chart-steps" height="120"></canvas></div>
-      <div class="card"><div class="card-title">VO₂ max</div><canvas id="chart-vo2" height="120"></canvas></div>
-      <div class="card"><div class="card-title">Stress vs body battery</div><canvas id="chart-stress" height="120"></canvas></div>
+      <div class="card"><div class="card-title">Resting HR</div><div class="chart-wrap"><canvas id="chart-rhr" height="120"></canvas></div></div>
+      <div class="card"><div class="card-title">HRV</div><div class="chart-wrap"><canvas id="chart-hrv" height="120"></canvas></div></div>
+      <div class="card"><div class="card-title">Sleep</div><div class="chart-wrap"><canvas id="chart-sleep" height="120"></canvas></div></div>
+      <div class="card"><div class="card-title">Steps</div><div class="chart-wrap"><canvas id="chart-steps" height="120"></canvas></div></div>
+      <div class="card"><div class="card-title">VO₂ max</div><div class="chart-wrap"><canvas id="chart-vo2" height="120"></canvas></div></div>
+      <div class="card"><div class="card-title">Stress vs body battery</div><div class="chart-wrap"><canvas id="chart-stress" height="120"></canvas></div></div>
     </div>
   </section>
 
@@ -344,7 +344,7 @@
     <div class="grid">
       <div class="card span-3">
         <div class="card-title row"><span>60-day projection</span><span class="muted mono" id="plan-summary">—</span></div>
-        <canvas id="chart-plan" height="140"></canvas>
+        <div class="chart-wrap"><canvas id="chart-plan" height="140"></canvas></div>
       </div>
       <div class="card span-3">
         <div class="card-title">Calendar</div>
